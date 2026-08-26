@@ -347,6 +347,25 @@
     <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="closeModal('doneModal')">Batal</button><button class="btn ok grow" onclick="confirmDone()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Selesai</button></div>
   </div></div>
 
+  <!-- MODAL: Edit Nominal -->
+  <div class="modal" id="priceModal" data-lenis-prevent><div class="inner">
+    <h3 style="font-size:17px;">Edit Nominal</h3>
+    <p class="muted" style="font-size:12.5px;" id="epWho"></p>
+    <label>Paket</label><input id="epPackage" placeholder="mis. Paket Couple" />
+    <label>Harga Total (Rp)</label><input id="epPrice" type="number" placeholder="55000" />
+    <label class="row" style="margin-top:14px;gap:9px;color:var(--ink);font-weight:700;font-size:13.5px;"><input type="checkbox" id="epWedding" style="width:auto;" /> Potensi klien Wedding</label>
+    <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="closeModal('priceModal')">Batal</button><button class="btn ok grow" onclick="savePrice()">Simpan Nominal</button></div>
+  </div></div>
+
+  <!-- MODAL: Link Foto & Kirim WA -->
+  <div class="modal" id="waModal" data-lenis-prevent><div class="inner">
+    <h3 style="font-size:17px;">Link Hasil Foto</h3>
+    <p class="muted" style="font-size:12.5px;" id="waWho"></p>
+    <p class="muted" style="font-size:12px;font-weight:700;" id="waNumber"></p>
+    <label>Link Hasil Foto</label><input id="waLink" placeholder="https://drive.google.com/..." />
+    <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="saveLink(false)">Simpan saja</button><button class="btn ok grow" onclick="saveLink(true)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.5A10 10 0 1 0 12 2z"/></svg>Kirim ke WA</button></div>
+  </div></div>
+
   <!-- MODAL: QR -->
   <div class="modal" id="qrModal" data-lenis-prevent><div class="inner" style="text-align:center;">
     <h3 style="font-size:17px;" id="qrTitle">QR Code</h3>
@@ -375,6 +394,7 @@
     const socket = io();
     let token = localStorage.getItem('sayunk_admin_token') || '';
     let me = null, events = [], doneTargetId = null, doneEventId = null, pkgCache = [];
+    let queueCache = [], waTarget = null, priceTarget = null, SETTINGS = {};
     const $ = (id) => document.getElementById(id);
     const rupiah = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
     const esc = (s) => (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -465,23 +485,81 @@
     function closeQR() { $('qrModal').style.display = 'none'; if (qrTimer) clearInterval(qrTimer); }
 
     // QUEUES
+    const rupiahShort = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
     async function loadQueues() {
       const eventId = $('qEvent').value;
       if (!eventId || eventId === 'Belum ada event') { $('queueList').innerHTML = '<div class="empty">Belum ada event aktif.</div>'; return; }
-      const qs = (await api('/api/queues/' + eventId)).data || [];
+      const qs = (await api('/api/admin/queues/' + eventId)).data || [];
+      queueCache = qs;
       $('stWaiting').textContent = qs.filter((q) => q.status === 'WAITING').length;
       $('stCalled').textContent = qs.filter((q) => q.status === 'CALLED').length;
       $('stDone').textContent = qs.filter((q) => q.status === 'DONE').length;
       const active = qs.filter((q) => q.status === 'WAITING' || q.status === 'CALLED');
-      $('queueList').innerHTML = active.map((q) => `<div class="qitem"><div class="qnum">${q.queuePrefix}-${q.queueSequence}</div>
+      const finished = qs.filter((q) => q.status === 'DONE' || q.status === 'CANCELED');
+
+      let html = active.map((q) => `<div class="qitem"><div class="qnum">${q.queuePrefix}-${q.queueSequence}</div>
         <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.status === 'CALLED' ? 'b-called' : 'b-waiting'}">${q.status === 'CALLED' ? 'Sedang Foto' : 'Menunggu'}</span></div>
         <div class="row" style="gap:6px;">${q.status === 'WAITING' ? `<button class="btn sm" onclick="callQ('${q.id}')">${A.bell}Panggil</button>` : ''}<button class="btn sm ok" onclick="openDone('${q.id}','${eventId}','${esc(q.customerName)}','${q.queuePrefix}-${q.queueSequence}')">${A.check}Selesai</button><button class="btn sm danger" onclick="cancelQ('${q.id}')">${A.x}</button></div>
       </div>`).join('') || '<div class="empty">Tidak ada antrian aktif. 🎉</div>';
+
+      if (finished.length) {
+        html += '<div style="margin:24px 0 10px;font-weight:800;font-size:14px;color:var(--muted);">Selesai &amp; Riwayat</div>';
+        html += finished.slice().reverse().map(function (q) {
+          const num = q.queuePrefix + '-' + q.queueSequence;
+          if (q.status === 'CANCELED') {
+            return `<div class="qitem" style="opacity:.65;"><div class="qnum" style="color:var(--muted);">${num}</div><div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge b-canceled">Dibatalkan</span></div></div>`;
+          }
+          const priceLbl = (q.finalPrice > 0) ? ('Selesai · ' + rupiahShort(q.finalPrice)) : 'Selesai · nominal belum diisi';
+          return `<div class="qitem"><div class="qnum" style="color:var(--muted);">${num}</div>
+            <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.finalPrice > 0 ? 'b-done' : 'b-canceled'}">${priceLbl}</span>${q.photoLink ? '<div style="font-size:11px;color:var(--mint);font-weight:700;margin-top:3px;">link tersimpan ✓</div>' : ''}</div>
+            <div class="row" style="gap:6px;"><button class="btn sm sec" onclick="editNominal('${q.id}')">Nominal</button><button class="btn sm ok" onclick="kirimWA('${q.id}')">Link &amp; WA</button></div>
+          </div>`;
+        }).join('');
+      }
+      $('queueList').innerHTML = html;
     }
     async function callQ(id) { await api('/api/queues/call/' + id, { method: 'POST' }); toast('Dipanggil 📢'); loadQueues(); }
     async function cancelQ(id) { if (!confirm('Batalkan antrian ini?')) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
     function openDone(id, eventId, name, num) { doneTargetId = id; doneEventId = eventId; $('doneWho').textContent = `${num} · ${name}`; $('dPackage').value=''; $('dPrice').value=''; $('dLink').value=''; $('dWedding').checked=false; $('doneModal').style.display = 'block'; }
     async function confirmDone() { await api('/api/queues/done/' + doneTargetId, { method: 'POST', body: { eventId: doneEventId, packageName: $('dPackage').value, finalPrice: $('dPrice').value || 0, basePrice: $('dPrice').value || 0, photoLink: $('dLink').value, isPotentialWedding: $('dWedding').checked } }); closeModal('doneModal'); toast('Transaksi selesai ✓'); loadQueues(); loadReport(); }
+
+    // --- Edit nominal (bisa diisi/diubah kapan saja, termasuk setelah selesai) ---
+    function editNominal(id) {
+      const q = queueCache.find((x) => x.id === id); if (!q) return;
+      priceTarget = id;
+      $('epWho').textContent = `${q.queuePrefix}-${q.queueSequence} · ${q.customerName}`;
+      $('epPackage').value = q.packageName || ''; $('epPrice').value = q.finalPrice || ''; $('epWedding').checked = !!q.isPotentialWedding;
+      $('priceModal').style.display = 'block';
+    }
+    async function savePrice() {
+      await api('/api/queues/' + priceTarget + '/price', { method: 'PATCH', body: { finalPrice: $('epPrice').value || 0, basePrice: $('epPrice').value || 0, packageName: $('epPackage').value, isPotentialWedding: $('epWedding').checked } });
+      closeModal('priceModal'); toast('Nominal diperbarui ✓'); loadQueues(); loadReport();
+    }
+
+    // --- Input link hasil foto + kirim ke WhatsApp ---
+    function kirimWA(id) {
+      const q = queueCache.find((x) => x.id === id); if (!q) return;
+      waTarget = id;
+      $('waWho').textContent = `${q.queuePrefix}-${q.queueSequence} · ${q.customerName}`;
+      $('waNumber').textContent = q.whatsappNumber ? ('WA: ' + q.whatsappNumber) : '⚠ nomor WA kosong';
+      $('waLink').value = q.photoLink || '';
+      $('waModal').style.display = 'block';
+    }
+    async function saveLink(sendWA) {
+      const q = queueCache.find((x) => x.id === waTarget); if (!q) return;
+      const link = $('waLink').value.trim();
+      await api('/api/queues/' + waTarget + '/link', { method: 'PATCH', body: { photoLink: link } });
+      if (sendWA) {
+        const wa = (q.whatsappNumber || '').replace(/\D/g, '');
+        if (!wa) { toast('Nomor WA kosong', true); }
+        else {
+          const tpl = SETTINGS.whatsappTemplate || 'Halo Kak [Nama], terima kasih! Ini link hasil fotomu: [Link]';
+          const msg = tpl.replace(/\[Nama[^\]]*\]/gi, q.customerName).replace(/\[Link[^\]]*\]/gi, link || '(link menyusul)');
+          window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+        }
+      }
+      closeModal('waModal'); toast('Link tersimpan ✓'); loadQueues();
+    }
     function closeModal(id) { $(id).style.display = 'none'; }
 
     // TEMPLATES
@@ -529,7 +607,7 @@
 
     // CONTENT
     const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','telegramToken','telegramChatId','dailyReportHour'];
-    async function loadContent() { const s = (await api('/api/settings')).data || {}; CF.forEach((f) => { const el = $('c_' + f); if (el) el.value = s[f] == null ? '' : s[f]; }); }
+    async function loadContent() { const s = (await api('/api/settings')).data || {}; SETTINGS = s; CF.forEach((f) => { const el = $('c_' + f); if (el) el.value = s[f] == null ? '' : s[f]; }); }
     async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules'].forEach((f) => body[f] = $('c_' + f).value); await api('/api/settings', { method: 'POST', body }); toast('Konten tersimpan ✓'); }
     async function saveTelegram() { await api('/api/settings', { method: 'POST', body: { telegramToken: $('c_telegramToken').value, telegramChatId: $('c_telegramChatId').value, dailyReportHour: $('c_dailyReportHour').value || 23 } }); toast('Pengaturan Telegram tersimpan ✓'); }
     async function testTelegram() { const j = await api('/api/telegram/test', { method: 'POST', body: { token: $('c_telegramToken').value, chatId: $('c_telegramChatId').value } }); toast(j.status === 'success' ? 'Pesan tes terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }

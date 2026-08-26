@@ -729,10 +729,41 @@ app.post('/api/queues/cancel/:id', requireAuth, async (req, res) => {
 
 app.patch('/api/queues/:id/link', requireAuth, async (req, res) => {
   try {
-    await prisma.queue.update({ where: { id: req.params.id }, data: { photoLink: req.body.photoLink } });
+    const q = await prisma.queue.update({ where: { id: req.params.id }, data: { photoLink: req.body.photoLink } });
+    io.to(q.eventId).emit('queue_updated');
     ok(res);
   } catch (e) {
     fail(res, 500, 'Gagal menyimpan link');
+  }
+});
+
+// Edit nominal / paket antrian (bisa dipakai kapan saja, termasuk setelah DONE)
+app.patch('/api/queues/:id/price', requireAuth, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const data = {};
+    if (b.finalPrice !== undefined) data.finalPrice = parseInt(b.finalPrice) || 0;
+    if (b.basePrice !== undefined) data.basePrice = parseInt(b.basePrice) || 0;
+    if (b.packageName !== undefined) data.packageName = b.packageName;
+    if (b.isPotentialWedding !== undefined) data.isPotentialWedding = isTrue(b.isPotentialWedding);
+    const q = await prisma.queue.update({ where: { id: req.params.id }, data });
+    io.to(q.eventId).emit('queue_updated');
+    ok(res);
+  } catch (e) {
+    fail(res, 500, 'Gagal memperbarui nominal');
+  }
+});
+
+// Daftar antrian lengkap untuk admin (termasuk WA, nominal, link)
+app.get('/api/admin/queues/:eventId', requireAuth, async (req, res) => {
+  try {
+    const qs = await prisma.queue.findMany({
+      where: { eventId: req.params.eventId },
+      orderBy: { queueSequence: 'asc' },
+    });
+    ok(res, qs);
+  } catch (e) {
+    fail(res, 500, 'Gagal memuat antrian');
   }
 });
 
