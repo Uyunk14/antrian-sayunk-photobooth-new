@@ -257,7 +257,7 @@ app.post('/api/settings', requireAuth, async (req, res) => {
     const allowed = [
       'boothName', 'tagline', 'logoUrl', 'heroSubtitle', 'avgSessionMinutes',
       'instagramUrl', 'tiktokUrl', 'whatsappNumber', 'address', 'openingHours',
-      'mapsUrl', 'howToUse', 'boothRules', 'whatsappTemplate',
+      'mapsUrl', 'howToUse', 'boothRules', 'whatsappTemplate', 'callTemplate',
       'telegramToken', 'telegramChatId', 'dailyReportHour', 'maxDeviceLimit',
     ];
     const data = {};

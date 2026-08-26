@@ -32,6 +32,7 @@ async function main() {
       'Datang 5 menit sebelum dipanggil agar tidak terlewat.',
     ].join('\n'),
     whatsappTemplate: 'Halo Kak [Nama], terima kasih sudah foto di Sayunk Photobooth! 📸\n\nIni link hasil fotomu: [Link]',
+    callTemplate: 'Halo Kak [Nama Pelanggan]! 📸\n\nNomor antrianmu [Nomor Antrian] — sekarang GILIRANMU! Silakan menuju booth foto Sayunk ya. Ditunggu! 🎉',
     dailyReportHour: 23,
   };
   if (existing) await prisma.setting.update({ where: { id: existing.id }, data: settingData });

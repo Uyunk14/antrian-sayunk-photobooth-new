@@ -99,6 +99,7 @@ model Setting {
   boothRules       String?
   // Integrasi
   whatsappTemplate String?
+  callTemplate     String?
   telegramToken    String?
   telegramChatId   String?
   dailyReportHour  Int     @default(23) // jam kirim laporan (WIB)
