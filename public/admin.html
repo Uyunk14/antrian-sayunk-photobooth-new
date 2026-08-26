@@ -289,6 +289,11 @@
               <label>Cara Pakai (1 langkah per baris)</label><textarea id="c_howToUse" style="min-height:130px;"></textarea>
               <label>Aturan Booth (1 aturan per baris)</label><textarea id="c_boothRules" style="min-height:130px;"></textarea>
             </div>
+            <div class="card">
+              <h3>Pesan WhatsApp (kirim link foto)</h3>
+              <p class="muted" style="font-size:12.5px;margin-top:4px;">Dipakai saat kirim link ke pelanggan. Tulis <b>[Nama Pelanggan]</b> &amp; <b>[Link Hasil Scan/Input]</b> — otomatis diganti nama &amp; link asli.</p>
+              <textarea id="c_whatsappTemplate" style="min-height:110px;" placeholder="Halo Kak [Nama Pelanggan], terima kasih sudah foto di Sayunk! Ini link hasil fotomu: [Link Hasil Scan/Input]"></textarea>
+            </div>
             <button class="btn ok" style="width:100%;padding:14px;" onclick="saveContent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>Simpan Semua Konten</button>
           </div>
 
@@ -416,6 +421,20 @@
     <button class="btn sec" style="width:100%;" onclick="closeScanner()">Tutup Scanner</button>
   </div></div>
 
+  <!-- MODAL: Detail Event -->
+  <div class="modal" id="eventDetailModal" data-lenis-prevent><div class="inner" style="max-width:640px;">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;">
+      <h3 style="font-size:18px;color:var(--lilac-deep);" id="edTitle">Event</h3>
+      <button class="btn sec sm" onclick="closeModal('eventDetailModal')">Tutup</button>
+    </div>
+    <div class="stat" style="grid-template-columns:1fr 1fr;margin:14px 0;">
+      <div class="b"><b style="font-size:14px;" id="edDate">-</b><span id="edSession">-</span></div>
+      <div class="b m"><b id="edRevenue">Rp 0</b><span id="edCount">0 pelanggan</span></div>
+    </div>
+    <h3 style="font-size:14px;margin-bottom:10px;">Daftar Klien Event Ini</h3>
+    <div class="tbl-wrap" style="max-height:340px;overflow-y:auto;"><table class="rtbl" style="min-width:480px;"><thead><tr><th>Waktu</th><th>Antrian</th><th>Pelanggan</th><th>Nominal</th><th>Status</th></tr></thead><tbody id="edBody"></tbody></table></div>
+  </div></div>
+
   <!-- MODAL: QR -->
   <div class="modal" id="qrModal" data-lenis-prevent><div class="inner" style="text-align:center;">
     <h3 style="font-size:17px;" id="qrTitle">QR Code</h3>
@@ -523,13 +542,34 @@
     }
     function renderEventList() {
       $('eventList').innerHTML = events.map((e) => `<div class="card"><div class="row" style="justify-content:space-between;">
-        <div><b style="font-size:15px;">${esc(e.name)}</b> <span class="muted" style="font-size:12px;">· prefix ${esc(e.prefix)}</span><div style="margin-top:5px;"><span class="badge ${e.isActive ? 'b-called' : 'b-canceled'}">${e.isActive ? 'AKTIF' : 'NONAKTIF'}</span></div></div>
-        <div class="row" style="gap:6px;"><button class="btn sm ${e.isActive ? 'warn' : 'ok'}" onclick="toggleEvent('${e.id}', ${!e.isActive})">${e.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button><button class="btn sm sec" onclick="showQR('${e.id}','${esc(e.name)}')">QR</button><button class="btn sm danger" onclick="delEvent('${e.id}')">${A.trash}</button></div>
+        <div><b style="font-size:15px;cursor:pointer;color:var(--lilac-deep);text-decoration:underline;text-underline-offset:3px;" onclick="openEventDetail('${e.id}')">${esc(e.name)}</b> <span class="muted" style="font-size:12px;">· prefix ${esc(e.prefix)}</span><div style="margin-top:5px;"><span class="badge ${e.isActive ? 'b-called' : 'b-canceled'}">${e.isActive ? 'AKTIF' : 'NONAKTIF'}</span></div></div>
+        <div class="row" style="gap:6px;"><button class="btn sm ${e.isActive ? 'warn' : 'ok'}" onclick="toggleEvent('${e.id}', ${!e.isActive})">${e.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button><button class="btn sm sec" onclick="openEventDetail('${e.id}')">Detail</button><button class="btn sm sec" onclick="showQR('${e.id}','${esc(e.name)}')">QR</button><button class="btn sm danger" onclick="delEvent('${e.id}')">${A.trash}</button></div>
       </div></div>`).join('') || '<div class="empty">Belum ada event.</div>';
     }
     async function addEvent() { const name = $('evName').value.trim(), prefix = ($('evPrefix').value.trim() || 'A').toUpperCase(); if (!name) return toast('Nama event wajib diisi', true); await api('/api/events', { method: 'POST', body: { name, prefix } }); $('evName').value=''; $('evPrefix').value=''; toast('Event dibuat'); loadEvents(); }
     async function toggleEvent(id, active) { await api('/api/events/' + id, { method: 'PATCH', body: { isActive: active } }); toast('Diperbarui'); loadEvents(); }
     async function delEvent(id) { if (!confirm('Hapus event ini beserta semua antriannya?')) return; await api('/api/events/' + id, { method: 'DELETE' }); toast('Dihapus'); loadEvents(); }
+
+    // --- Detail Event: pendapatan + daftar klien ---
+    async function openEventDetail(id) {
+      const ev = events.find((e) => e.id === id); if (!ev) return;
+      const qs = (await api('/api/admin/queues/' + id)).data || [];
+      const done = qs.filter((q) => q.status === 'DONE');
+      $('edTitle').textContent = ev.name;
+      $('edDate').textContent = new Date(ev.createdAt).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const fmtT = (d) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (qs.length) { const ts = qs.map((q) => new Date(q.createdAt).getTime()); $('edSession').textContent = 'Sesi: ' + fmtT(new Date(Math.min(...ts))) + ' - ' + fmtT(new Date(Math.max(...ts))) + ' WIB'; }
+      else $('edSession').textContent = 'Belum ada antrian';
+      $('edRevenue').textContent = rupiah(done.reduce((s, q) => s + (q.finalPrice || 0), 0));
+      $('edCount').textContent = done.length + ' pelanggan selesai';
+      $('edBody').innerHTML = qs.map((q) => {
+        const time = fmtT(new Date(q.createdAt));
+        const badge = q.status === 'DONE' ? '<span class="badge b-called">SELESAI</span>' : (q.status === 'CANCELED' ? '<span class="badge b-canceled">BATAL</span>' : (q.status === 'CALLED' ? '<span class="badge b-called">FOTO</span>' : '<span class="badge b-waiting">ANTRI</span>'));
+        const nominal = q.status === 'DONE' ? rupiah(q.finalPrice || 0) : '-';
+        return `<tr><td>${time}</td><td><b>${q.queuePrefix}-${q.queueSequence}</b></td><td>${esc(q.customerName)}<div class="sub">${esc(q.whatsappNumber || '')}</div></td><td style="font-weight:800;color:var(--lilac-deep);">${nominal}</td><td>${badge}</td></tr>`;
+      }).join('') || '<tr><td colspan="5" class="empty" style="padding:22px;">Belum ada klien.</td></tr>';
+      $('eventDetailModal').style.display = 'block';
+    }
     let qrTimer = null;
     async function showQR(id, name) { $('qrTitle').textContent = 'QR · ' + name; $('qrModal').style.display = 'block';
       const refresh = async () => { const r = await api('/api/events/' + id + '/qr'); $('qrImg').src = r.qrImage; $('qrUrl').textContent = r.scanUrl; };
@@ -709,9 +749,9 @@
     async function deletePackage() { const id = $('pkgId').value; if (!id || !confirm('Hapus paket ini?')) return; await api('/api/packages/' + id, { method: 'DELETE' }); closeModal('pkgModal'); toast('Dihapus'); loadPackages(); }
 
     // CONTENT
-    const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','telegramToken','telegramChatId','dailyReportHour'];
+    const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate','telegramToken','telegramChatId','dailyReportHour'];
     async function loadContent() { const s = (await api('/api/settings')).data || {}; SETTINGS = s; CF.forEach((f) => { const el = $('c_' + f); if (el) el.value = s[f] == null ? '' : s[f]; }); }
-    async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules'].forEach((f) => body[f] = $('c_' + f).value); await api('/api/settings', { method: 'POST', body }); toast('Konten tersimpan ✓'); }
+    async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate'].forEach((f) => body[f] = $('c_' + f).value); await api('/api/settings', { method: 'POST', body }); SETTINGS.whatsappTemplate = $('c_whatsappTemplate').value; toast('Konten tersimpan ✓'); }
     async function saveTelegram() { await api('/api/settings', { method: 'POST', body: { telegramToken: $('c_telegramToken').value, telegramChatId: $('c_telegramChatId').value, dailyReportHour: $('c_dailyReportHour').value || 23 } }); toast('Pengaturan Telegram tersimpan ✓'); }
     async function testTelegram() { const j = await api('/api/telegram/test', { method: 'POST', body: { token: $('c_telegramToken').value, chatId: $('c_telegramChatId').value } }); toast(j.status === 'success' ? 'Pesan tes terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
     async function reportNow(day) { const j = await api('/api/telegram/report-now', { method: 'POST', body: { day } }); toast(j.status === 'success' ? 'Laporan terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
