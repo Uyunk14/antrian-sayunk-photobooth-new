@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#FDFBF7" />
+  <title>Sayunk Photobooth — Antrian</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #FDFBF7;
+      --bg-tint: #F7F1EA;
+      --surface: #FFFFFF;
+      --ink: #2B2733;
+      --ink-soft: #4A4552;
+      --muted: #928B9C;
+      --line: #EFE8DF;
+      --lilac: #8B5CF6;
+      --lilac-deep: #7C3AED;
+      --lilac-soft: #F0EAFF;
+      --peach: #FB7185;
+      --peach-soft: #FFE9EC;
+      --mint: #10B981;
+      --mint-soft: #DAF6EC;
+      --amber: #F59E0B;
+      --radius: 24px;
+      --radius-sm: 16px;
+      --shadow-sm: 0 4px 14px -6px rgba(120, 100, 160, 0.18);
+      --shadow: 0 18px 40px -20px rgba(120, 100, 160, 0.35);
+      --grad: linear-gradient(135deg, #8B5CF6 0%, #C084FC 45%, #FB7185 100%);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; font-family: 'Manrope', system-ui, sans-serif;
+      background: var(--bg); color: var(--ink); line-height: 1.55;
+      -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    h1, h2, h3 { margin: 0; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; }
+    a { color: inherit; text-decoration: none; }
+
+    /* pastel background blobs */
+    .blob { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.55; z-index: -1; pointer-events: none; }
+    .blob.b1 { width: 340px; height: 340px; background: #E4D6FF; top: -120px; left: -100px; }
+    .blob.b2 { width: 300px; height: 300px; background: #FFDCE2; top: 30%; right: -140px; opacity: 0.5; }
+    .blob.b3 { width: 300px; height: 300px; background: #D6F5E8; bottom: -120px; left: 20%; opacity: 0.45; }
+
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 20px 18px 70px; }
+
+    /* ---------- TOP BAR ---------- */
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 14px; background: var(--grad);
+      display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 21px;
+      box-shadow: 0 10px 22px -8px rgba(139, 92, 246, 0.6); overflow: hidden; flex-shrink: 0;
+    }
+    .logo img { width: 100%; height: 100%; object-fit: cover; }
+    .brand-logo { display: inline-flex; align-items: center; }
+    .brand-logo img { height: 42px; width: auto; display: block; }
+    .brand .nm { font-weight: 800; font-size: 16px; }
+    .brand .nm small { display: block; font-weight: 500; font-size: 11.5px; color: var(--muted); letter-spacing: 0; }
+    .live-pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--mint);
+      background: var(--mint-soft); padding: 7px 13px; border-radius: 30px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.6); } }
+
+    /* ---------- HERO ---------- */
+    .hero { padding: 16px 0 30px; display: grid; gap: 26px; align-items: center; }
+    .hero-text { text-align: center; }
+    .hero .kicker { display: inline-block; font-size: 12px; font-weight: 700; color: var(--lilac-deep);
+      background: var(--lilac-soft); padding: 6px 14px; border-radius: 30px; margin-bottom: 18px; }
+    .hero h1 { font-size: clamp(2.6rem, 9vw, 4.4rem); font-weight: 800; letter-spacing: -0.04em;
+      background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { color: var(--ink-soft); font-size: clamp(13.5px, 2.6vw, 16px); max-width: 480px; margin: 16px auto 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 20px; }
+    @media (min-width: 900px) {
+      .hero { grid-template-columns: 1.02fr 0.98fr; gap: 34px; padding: 40px 0 48px; }
+      .hero-text { text-align: left; }
+      .hero-text .chips { justify-content: flex-start; }
+      .hero p { margin: 18px 0 0; }
+    }
+    /* Hero visual: photo strip + polaroid + sparkles */
+    .hero-visual { position: relative; height: 350px; display: grid; place-items: center; }
+    .hero-visual .pstrip { width: 124px; background: #fff; border-radius: 15px; padding: 10px 10px 28px;
+      box-shadow: 0 34px 60px -26px rgba(120,100,160,.55); transform: rotate(-7deg); position: relative; z-index: 2; }
+    .pstrip .frame { aspect-ratio: 1/1; border-radius: 7px; margin-bottom: 8px; }
+    .pstrip .frame:last-child { margin-bottom: 0; }
+    .pstrip::after { content: 'SAYUNK'; position: absolute; bottom: 11px; left: 0; right: 0; text-align: center;
+      font-size: 10px; font-weight: 800; letter-spacing: 3px; color: var(--muted); }
+    .hero-visual .polaroid { position: absolute; width: 144px; background: #fff; border-radius: 13px; padding: 9px 9px 28px;
+      box-shadow: 0 30px 55px -24px rgba(120,100,160,.5); transform: rotate(8deg); right: 6%; bottom: 6%; z-index: 3; }
+    .polaroid .pic { aspect-ratio: 4/5; border-radius: 9px; }
+    .polaroid .cap { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+    .hero-visual .spark { position: absolute; color: var(--peach); opacity: .9; }
+    .g1 { background: linear-gradient(135deg,#E9DDFF,#C9B8FF); } .g2 { background: linear-gradient(135deg,#FFDCE4,#FFB0C4); }
+    .g3 { background: linear-gradient(135deg,#D6F5E8,#A7E8CE); } .g4 { background: linear-gradient(135deg,#FFE9C7,#FFD08A); }
+    /* Galeri */
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+    .gallery .g { aspect-ratio: 4/5; border-radius: 15px; overflow: hidden; position: relative; cursor: pointer; border: 1px solid var(--line); }
+    .gallery .g img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .45s ease; }
+    .gallery .g:hover img { transform: scale(1.08); }
+    .gallery .g.ph { display: grid; place-items: center; }
+    .gallery .g.ph span { font-size: 24px; opacity: .5; }
+    /* Video reels (portrait) */
+    .reels { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 12px; scrollbar-width: thin; }
+    .reels::-webkit-scrollbar { height: 6px; } .reels::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
+    .reel { position: relative; flex: 0 0 auto; width: 205px; aspect-ratio: 9/16; border-radius: 20px; overflow: hidden;
+      background: #17151d; cursor: pointer; box-shadow: 0 20px 44px -22px rgba(120,100,160,.5); }
+    .reel video, .reel .poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .reel .poster.ph { background: linear-gradient(160deg,#8B5CF6,#C084FC,#FB7185); }
+    .reel .play { position: absolute; inset: 0; display: grid; place-items: center; transition: opacity .3s; }
+    .reel .play b { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; box-shadow: 0 10px 24px -8px rgba(0,0,0,.4); }
+    .reel .play b svg { width: 24px; height: 24px; margin-left: 3px; color: var(--lilac-deep); }
+    .reel .rcap { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 12px; color: #fff; font-size: 12.5px; font-weight: 700;
+      background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+    .chip { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); background: var(--surface);
+      border: 1px solid var(--line); padding: 8px 14px; border-radius: 30px; box-shadow: var(--shadow-sm); }
+
+    /* ---------- CARDS / GRID ---------- */
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 24px; box-shadow: var(--shadow-sm); }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
+    @media (min-width: 860px) { .grid { grid-template-columns: 1fr 1fr; } .span2 { grid-column: 1 / -1; } }
+
+    .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .sec-head .ic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex-shrink: 0; }
+    .sec-head .ic svg { width: 21px; height: 21px; }
+    .ic.v { background: var(--lilac-soft); color: var(--lilac-deep); }
+    .ic.p { background: var(--peach-soft); color: #E11D48; }
+    .ic.m { background: var(--mint-soft); color: #047857; }
+    .ic.a { background: #FEF3C7; color: #B45309; }
+    .sec-head h2 { font-size: 18px; }
+    .sec-head .sub { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+
+    /* ---------- QUEUE CARD ---------- */
+    .qcard { text-align: center; position: relative; overflow: hidden; max-width: 640px; margin: 0 auto 18px;
+      background: linear-gradient(160deg, #FFFFFF 0%, #FBF6FF 100%); border: 1px solid #EFE6FF; }
+    .q-kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); font-weight: 700; }
+    .q-num { font-size: clamp(64px, 18vw, 92px); font-weight: 800; line-height: 1; letter-spacing: -0.05em;
+      background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 8px 0 6px; }
+    .q-status { margin-top: 14px; font-size: 14.5px; font-weight: 700; padding: 13px 16px; border-radius: 14px;
+      background: var(--lilac-soft); color: var(--lilac-deep); }
+    .q-status.called { background: var(--mint-soft); color: #047857; }
+    .q-meta { display: flex; gap: 12px; margin-top: 16px; }
+    .q-meta .b { flex: 1; background: var(--bg-tint); border-radius: 15px; padding: 14px 8px; }
+    .q-meta .b b { display: block; font-size: 26px; font-weight: 800; }
+    .q-meta .b span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+
+    label.fl { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin: 14px 2px 7px; text-align: left; }
+    input, select {
+      width: 100%; padding: 14px 16px; border-radius: 14px; border: 1.5px solid var(--line);
+      background: var(--bg); color: var(--ink); font-family: inherit; font-size: 15px; font-weight: 500; transition: .2s;
+    }
+    input::placeholder { color: #B8B1C2; }
+    input:focus, select:focus { outline: none; border-color: var(--lilac); background: #fff; box-shadow: 0 0 0 4px var(--lilac-soft); }
+
+    .btn { width: 100%; padding: 16px; border: none; border-radius: 15px; font-family: inherit; font-weight: 800;
+      font-size: 15.5px; cursor: pointer; transition: transform .12s, box-shadow .2s; color: #fff; background: var(--grad);
+      box-shadow: 0 14px 28px -12px rgba(139, 92, 246, 0.7); }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .6; }
+
+    /* mini monitor */
+    .mon-wrap { margin-top: 20px; border-top: 1px dashed var(--line); padding-top: 18px; }
+    .mon-title { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; text-align: left; }
+    .mon { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+    .mon::-webkit-scrollbar { height: 5px; }
+    .mon::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
+    .qbox { min-width: 66px; padding: 11px 6px; border-radius: 13px; text-align: center; background: var(--bg-tint); flex-shrink: 0; }
+    .qbox .n { font-size: 16px; font-weight: 800; }
+    .qbox .l { font-size: 9.5px; font-weight: 700; margin-top: 3px; color: var(--muted); }
+    .qbox.waiting { background: var(--lilac-soft); } .qbox.waiting .n, .qbox.waiting .l { color: var(--lilac-deep); }
+    .qbox.called { background: var(--mint-soft); } .qbox.called .n, .qbox.called .l { color: #047857; }
+    .qbox.done { opacity: .5; } .qbox.done .n { text-decoration: line-through; }
+
+    /* ---------- PACKAGES (grid 2 kolom, ringkas) ---------- */
+    #pkgList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; align-items: start; }
+    .pkg { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 13px; position: relative; transition: .2s; }
+    .pkg.popular { border-color: var(--lilac); background: linear-gradient(160deg, #FBF6FF, #fff); box-shadow: 0 12px 26px -16px rgba(139,92,246,0.5); }
+    .pkg .tag { position: absolute; top: -9px; right: 9px; font-size: 9.5px; font-weight: 800; color: #fff; background: var(--grad); padding: 4px 9px; border-radius: 30px; white-space: nowrap; }
+    .pkg .pn { font-weight: 800; font-size: 15px; }
+    .pkg .pd { font-size: 11px; color: var(--muted); margin: 2px 0 8px; line-height: 1.35; }
+    .pkg .price { font-weight: 800; font-size: 20px; color: var(--ink); line-height: 1.1; }
+    .pkg .price .old { display: block; font-size: 11.5px; color: var(--muted); text-decoration: line-through; font-weight: 700; margin: 2px 0 0; }
+    .pkg ul { list-style: none; padding: 0; margin: 10px 0 0; }
+    .pkg li { font-size: 11.5px; color: var(--ink-soft); padding: 4px 0 4px 20px; position: relative; font-weight: 500; line-height: 1.3; }
+    .pkg li::before { content: '✓'; position: absolute; left: 0; top: 4px; width: 15px; height: 15px; border-radius: 5px; background: var(--mint-soft); color: var(--mint); font-size: 9px; font-weight: 800; display: grid; place-items: center; }
+    @media (min-width: 900px) {
+      .pkg { padding: 16px; }
+      .pkg .pn { font-size: 16px; } .pkg .price { font-size: 23px; } .pkg li { font-size: 12.5px; padding-left: 22px; }
+    }
+
+    /* ---------- TEMPLATES ---------- */
+    .acc { background: var(--bg-tint); border: 1.5px solid transparent; border-radius: 14px; padding: 15px 17px; width: 100%; text-align: left;
+      color: var(--ink); font-family: inherit; font-weight: 700; font-size: 14.5px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; transition: .2s; }
+    .acc.active { background: var(--lilac-soft); border-color: var(--lilac); color: var(--lilac-deep); }
+    .acc .arrow { transition: transform .3s; color: var(--muted); font-size: 12px; }
+    .acc.active .arrow { transform: rotate(180deg); color: var(--lilac-deep); }
+    .panel { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
+    .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 11px; padding: 6px 0 14px; }
+    .tbox { aspect-ratio: 3/4; border-radius: 14px; overflow: hidden; position: relative; background: var(--bg-tint); cursor: pointer; border: 1px solid var(--line); }
+    .tbox img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+    .tbox:hover img { transform: scale(1.06); }
+    .tbox .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 8px; font-size: 11px; font-weight: 700; color: #fff; text-align: center; background: linear-gradient(transparent, rgba(0,0,0,0.7)); }
+
+    /* ---------- STEPS / RULES ---------- */
+    .steps { counter-reset: s; padding: 0; margin: 0; list-style: none; }
+    .steps li { counter-increment: s; position: relative; padding: 8px 0 8px 44px; font-size: 14px; color: var(--ink-soft); font-weight: 500; }
+    .steps li::before { content: counter(s); position: absolute; left: 0; top: 6px; width: 30px; height: 30px; border-radius: 10px; background: var(--grad); color: #fff; font-weight: 800; font-size: 14px; display: grid; place-items: center; box-shadow: 0 6px 14px -6px rgba(139,92,246,0.6); }
+    .rules { padding: 0; margin: 0; list-style: none; }
+    .rules li { position: relative; padding: 7px 0 7px 28px; font-size: 13.5px; color: var(--ink-soft); font-weight: 500; }
+    .rules li::before { content: ''; position: absolute; left: 4px; top: 13px; width: 8px; height: 8px; border-radius: 50%; background: var(--peach); }
+
+    /* ---------- CONTACT / SOCIAL ---------- */
+    .socials { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 16px; }
+    .sbtn { flex: 1; min-width: 130px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 14px; border-radius: 14px; font-size: 13.5px; font-weight: 800; color: #fff; }
+    .sbtn.ig { background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+    .sbtn.tt { background: #111; }
+    .sbtn.wa { background: #25D366; }
+    .sbtn svg { width: 18px; height: 18px; }
+    .contact-line { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--ink-soft); padding: 8px 0; font-weight: 500; }
+    .contact-line .ic2 { display: inline-flex; color: var(--lilac-deep); flex-shrink: 0; margin-top: 1px; }
+    .contact-line .ic2 svg { width: 18px; height: 18px; }
+
+    .footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 30px; font-weight: 500; }
+
+    /* lightbox */
+    #lb { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(43, 39, 51, 0.6); backdrop-filter: blur(8px); }
+    #lb img { max-width: 92%; max-height: 82%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); border-radius: 20px; box-shadow: 0 30px 60px -20px rgba(0,0,0,0.5); }
+    #lb .x { position: absolute; top: 20px; right: 24px; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: var(--ink); font-size: 26px; display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow); }
+    #vlb { display: none; position: fixed; inset: 0; z-index: 120; background: rgba(20,16,28,.93); backdrop-filter: blur(10px); align-items: center; justify-content: center; padding: 20px; }
+    #vlb video { max-width: min(92vw, 460px); max-height: 88vh; width: auto; height: auto; border-radius: 16px; background: #000; box-shadow: 0 40px 80px -20px rgba(0,0,0,.6); }
+    #vlb .x { position: absolute; top: 18px; right: 22px; width: 46px; height: 46px; border-radius: 50%; background: #fff; color: var(--ink); font-size: 26px; display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow); z-index: 2; }
+    .gallery .g .gcap { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 8px 7px; font-size: 11px; font-weight: 700; color: #fff; text-align: center; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+
+    .hidden { display: none !important; }
+    .skeleton { color: var(--muted); font-size: 13px; text-align: center; padding: 12px; font-weight: 500; }
+    .fade { animation: fade .5s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+  <div class="blob b1" data-parallax="16"></div><div class="blob b2" data-parallax="-12"></div><div class="blob b3" data-parallax="22"></div>
+
+  <div id="lb" onclick="this.style.display='none'"><span class="x">&times;</span><img id="lbImg" src="" alt="" /></div>
+  <div id="vlb"><span class="x" onclick="closeVideo()">&times;</span><video id="vlbVideo" controls playsinline preload="auto"></video></div>
+
+  <div class="wrap">
+    <div class="topbar" data-anim="intro">
+      <a class="brand-logo" href="/" aria-label="Sayunk Photobooth"><img id="logoImg" src="/img/logo.png" alt="Sayunk Photobooth" /></a>
+      <span class="live-pill"><span class="dot"></span> LIVE</span>
+    </div>
+
+    <section class="hero">
+      <div class="hero-text">
+        <span class="kicker" data-anim="intro">✨ Self-Studio Photobooth</span>
+        <h1 id="heroTitle" data-anim="intro">capture every vibe.</h1>
+        <p id="heroSub" data-anim="intro">Memuat informasi…</p>
+        <div class="chips" id="heroChips" data-anim="intro"></div>
+      </div>
+      <div class="hero-visual" data-anim="intro" aria-hidden="true">
+        <div class="pstrip" data-float>
+          <div class="frame g1"></div><div class="frame g2"></div><div class="frame g3"></div>
+        </div>
+        <div class="polaroid" data-float>
+          <div class="pic g4"></div><div class="cap">say cheese! 📸</div>
+        </div>
+        <svg class="spark" style="top:5%;left:9%;width:26px;height:26px" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/></svg>
+        <svg class="spark" style="bottom:12%;left:1%;width:18px;height:18px;color:var(--lilac)" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/></svg>
+      </div>
+    </section>
+
+    <!-- QUEUE CARD -->
+    <div class="card qcard" id="queueCard" data-anim="intro"><div class="skeleton">Memuat status antrian…</div></div>
+
+    <!-- INFO GRID -->
+    <div class="grid">
+      <div class="card" data-reveal>
+        <div class="sec-head"><div class="ic v"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1a2 2 0 0 0 0 4v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1a2 2 0 0 0 0-4z"/><path d="M13 7v10"/></svg></div><div><h2>Paket & Harga</h2><div class="sub">Pilih yang paling pas buat kamu</div></div></div>
+        <div id="pkgList"><div class="skeleton">Memuat paket…</div></div>
+      </div>
+
+      <div class="card" data-reveal>
+        <div class="sec-head"><div class="ic p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><div><h2>Pilihan Template</h2><div class="sub">Ketuk kategori, ketuk gambar untuk perbesar</div></div></div>
+        <div id="tplList"><div class="skeleton">Memuat katalog…</div></div>
+      </div>
+
+      <div class="card" id="howCard" data-reveal>
+        <div class="sec-head"><div class="ic m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8L16.5 17.5l1.8-.7z"/></svg></div><div><h2>Cara Pakai</h2><div class="sub">Gampang banget, ikuti langkah ini</div></div></div>
+        <ol class="steps" id="howList"></ol>
+      </div>
+
+      <div class="card" id="rulesCard" data-reveal>
+        <div class="sec-head"><div class="ic a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h4"/></svg></div><div><h2>Aturan Booth</h2><div class="sub">Demi kenyamanan bersama</div></div></div>
+        <ul class="rules" id="rulesList"></ul>
+      </div>
+
+      <div class="card span2" data-reveal>
+        <div class="sec-head"><div class="ic p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><div><h2>Lokasi & Kontak</h2><div class="sub">Sampai jumpa di booth!</div></div></div>
+        <div id="contactList"></div>
+        <div class="socials" id="socialList"></div>
+      </div>
+    </div>
+
+    <!-- GALERI HASIL FOTO -->
+    <div class="card" id="galleryCard" data-reveal style="display:none;margin-top:16px;">
+      <div class="sec-head"><div class="ic v"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><div><h2>Galeri Hasil Foto</h2><div class="sub">Intip keseruan di booth kami</div></div></div>
+      <div class="gallery" id="galleryGrid"></div>
+    </div>
+
+    <!-- VIDEO -->
+    <div class="card" id="videoCard" data-reveal style="display:none;margin-top:16px;">
+      <div class="sec-head"><div class="ic p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2.5"/></svg></div><div><h2>Video</h2><div class="sub">Lihat langsung serunya</div></div></div>
+      <div class="reels" id="videoRow"></div>
+    </div>
+
+    <div class="footer">© <span id="year"></span> <span id="footName">Sayunk Photobooth</span> · Sistem Antrian Digital</div>
+  </div>
+
+  <script>
+    const socket = io();
+    const params = new URLSearchParams(location.search);
+    const urlEventId = params.get('event'), urlToken = params.get('token');
+    let currentEventId = null, myQueueId = null, config = {};
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const rupiah = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
+    $('year').textContent = new Date().getFullYear();
+    const _svg = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC = {
+      pin: _svg('<path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'),
+      clock: _svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+      chat: _svg('<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.9-.9L3 20l1.1-4.3A8.4 8.4 0 1 1 21 11.5z"/>'),
+      map: _svg('<path d="M9 3 3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3z"/><path d="M9 3v15M15 6v15"/>'),
+    };
+    function zoom(url) { $('lbImg').src = url; $('lb').style.display = 'block'; }
+
+    async function loadConfig() {
+      try { const r = await fetch('/api/public/config'); config = (await r.json()).data || {}; renderConfig(); } catch (e) {}
+    }
+    function renderConfig() {
+      const c = config;
+      if (c.boothName) { $('footName').textContent = c.boothName; if ($('logoImg')) $('logoImg').alt = c.boothName; }
+      if (c.tagline) $('heroTitle').textContent = c.tagline;
+      if (c.heroSubtitle) $('heroSub').textContent = c.heroSubtitle;
+      if (c.logoUrl && $('logoImg')) $('logoImg').src = c.logoUrl;
+
+      const chips = [];
+      if (c.openingHours) chips.push(`🕒 ${esc(c.openingHours)}`);
+      if (c.address) chips.push(`📍 ${esc(c.address.split(',')[0])}`);
+      $('heroChips').innerHTML = chips.map((t) => `<span class="chip">${t}</span>`).join('');
+
+      const pkgs = c.packages || [];
+      $('pkgList').innerHTML = pkgs.length ? pkgs.map((p) => {
+        const feats = (p.features || '').split('\n').filter(Boolean);
+        return `<div class="pkg ${p.isPopular ? 'popular' : ''}">${p.isPopular ? '<span class="tag">⭐ Favorit</span>' : ''}
+          <div class="pn">${esc(p.name)}</div>${p.description ? `<div class="pd">${esc(p.description)}</div>` : ''}
+          <div class="price">${rupiah(p.price)}${p.oldPrice ? `<span class="old">${rupiah(p.oldPrice)}</span>` : ''}</div>
+          ${feats.length ? `<ul>${feats.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}</div>`;
+      }).join('') : '<div class="skeleton">Belum ada paket.</div>';
+
+      const how = (c.howToUse || '').split('\n').filter(Boolean);
+      if (how.length) $('howList').innerHTML = how.map((s) => `<li>${esc(s)}</li>`).join(''); else $('howCard').classList.add('hidden');
+      const rules = (c.boothRules || '').split('\n').filter(Boolean);
+      if (rules.length) $('rulesList').innerHTML = rules.map((s) => `<li>${esc(s)}</li>`).join(''); else $('rulesCard').classList.add('hidden');
+
+      const ct = [];
+      if (c.address) ct.push(`<div class="contact-line"><span class="ic2">${IC.pin}</span><span>${esc(c.address)}</span></div>`);
+      if (c.openingHours) ct.push(`<div class="contact-line"><span class="ic2">${IC.clock}</span><span>${esc(c.openingHours)}</span></div>`);
+      if (c.whatsappNumber) ct.push(`<div class="contact-line"><span class="ic2">${IC.chat}</span><span>WhatsApp: ${esc(c.whatsappNumber)}</span></div>`);
+      if (c.mapsUrl) ct.push(`<div class="contact-line"><span class="ic2">${IC.map}</span><a href="${esc(c.mapsUrl)}" target="_blank" style="color:var(--lilac-deep);font-weight:700;">Buka di Google Maps →</a></div>`);
+      $('contactList').innerHTML = ct.join('') || '<div class="skeleton">Info kontak belum diisi.</div>';
+
+      const s = [];
+      if (c.instagramUrl) s.push(`<a class="sbtn ig" href="${esc(c.instagramUrl)}" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>Instagram</a>`);
+      if (c.tiktokUrl) s.push(`<a class="sbtn tt" href="${esc(c.tiktokUrl)}" target="_blank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path></svg>TikTok</a>`);
+      if (c.whatsappNumber) s.push(`<a class="sbtn wa" href="https://wa.me/${esc(c.whatsappNumber)}" target="_blank"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.5A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.1-1.7 1.2-.5.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.5-2.6-1.1-4.3-3.7-4.4-3.9-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.7 1.7c.1.2.1.4 0 .5l-.3.5-.3.3c-.1.1-.3.3-.1.5.1.3.7 1.1 1.4 1.7.9.8 1.7 1.1 2 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.4-.2.6-.1l1.6.8c.2.1.4.2.4.3.1.1.1.6-.1 1.2z"></path></svg>WhatsApp</a>`);
+      $('socialList').innerHTML = s.join('');
+    }
+
+    async function loadTemplates() {
+      try {
+        const r = await fetch('/api/templates'); const data = (await r.json()).data;
+        const box = $('tplList');
+        if (!data || !data.length) { box.innerHTML = '<div class="skeleton">Belum ada template aktif saat ini.</div>'; return; }
+        box.innerHTML = '';
+        data.forEach((cat, i) => {
+          const acc = document.createElement('button'); acc.className = 'acc' + (i === 0 ? ' active' : '');
+          acc.innerHTML = `<span>${esc(cat.name)} <span style="color:var(--muted);font-weight:600;font-size:12px;">· ${cat.templates.length}</span></span><span class="arrow">▼</span>`;
+          const panel = document.createElement('div'); panel.className = 'panel';
+          const grid = document.createElement('div'); grid.className = 'tgrid';
+          grid.innerHTML = cat.templates.map((t) => `<div class="tbox" onclick="zoom('${esc(t.imageUrl)}')"><img loading="lazy" src="${esc(t.thumbUrl || t.imageUrl)}" alt="${esc(t.name)}"><div class="cap">${esc(t.name)}</div></div>`).join('');
+          panel.appendChild(grid); box.appendChild(acc); box.appendChild(panel);
+          acc.addEventListener('click', () => { acc.classList.toggle('active'); panel.style.maxHeight = panel.style.maxHeight ? null : panel.scrollHeight + 'px'; });
+          if (i === 0) requestAnimationFrame(() => panel.style.maxHeight = panel.scrollHeight + 'px');
+        });
+      } catch (e) { $('tplList').innerHTML = '<div class="skeleton">Gagal memuat katalog.</div>'; }
+    }
+
+    function renderQueueCard(mode, extra = {}) {
+      const card = $('queueCard');
+      if (mode === 'info') {
+        card.innerHTML = `<div class="q-kicker">Ambil Antrian</div><div style="font-size:48px;margin:14px 0 8px;">📷</div>
+          <p style="color:var(--ink-soft);font-size:14px;margin:0 auto;max-width:300px;font-weight:500;">${esc(extra.msg || 'Scan QR di meja kasir Sayunk untuk mengambil nomor antrianmu. Sambil menunggu, jelajahi info di bawah ya!')}</p>`;
+      } else if (mode === 'register') {
+        card.innerHTML = `<div class="q-kicker">Selamat Datang di ${esc(extra.eventName || 'Sayunk')} 👋</div>
+          <h2 style="margin:10px 0 2px;font-size:22px;">Ambil Nomor Antrianmu</h2>
+          <div style="text-align:left;margin-top:8px;">
+            <label class="fl">Nama Panggilan</label><input id="inName" type="text" placeholder="Contoh: Sayunk" />
+            <label class="fl">Nomor WhatsApp</label><input id="inWA" type="tel" inputmode="numeric" placeholder="08xxxxxxxxxx" />
+          </div>
+          <button class="btn" style="margin-top:18px;" onclick="submitQueue()">Ambil Antrian Sekarang</button>`;
+      } else if (mode === 'waiting') {
+        card.innerHTML = `<div class="q-kicker">Nomor Antrianmu</div><div class="q-num" id="myNum">--</div>
+          <div class="q-status" id="myStatus">Menghitung urutan…</div>
+          <div class="q-meta"><div class="b"><b id="aheadN">–</b><span>Antrean di depan</span></div><div class="b"><b id="estN">–</b><span>Estimasi tunggu</span></div></div>
+          <div class="mon-wrap"><div class="mon-title">🔴 Live Status Antrian</div><div class="mon" id="mon"><span class="skeleton">Memuat…</span></div></div>`;
+      }
+    }
+
+    async function initQueue() {
+      const sq = localStorage.getItem('sayunk_q'), se = localStorage.getItem('sayunk_e');
+      if (sq && se) {
+        try { const j = await (await fetch('/api/queues/me/' + sq)).json();
+          if (j.status === 'success' && (j.data.status === 'WAITING' || j.data.status === 'CALLED')) { currentEventId = se; myQueueId = sq; enterWaiting(); return; }
+        } catch (e) {}
+        localStorage.removeItem('sayunk_q'); localStorage.removeItem('sayunk_e');
+      }
+      if (urlEventId && urlToken) validateQR(); else renderQueueCard('info');
+    }
+    async function validateQR() {
+      try { const j = await (await fetch('/api/validate-qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: urlEventId, token: urlToken }) })).json();
+        if (j.valid) { currentEventId = urlEventId; renderQueueCard('register', { eventName: j.eventName }); } else renderQueueCard('info', { msg: j.message });
+      } catch (e) { renderQueueCard('info'); }
+    }
+    async function submitQueue() {
+      const name = $('inName').value.trim(), wa = $('inWA').value.trim();
+      if (!name) return alert('Nama wajib diisi ya!');
+      const btn = document.querySelector('#queueCard .btn'); btn.disabled = true; btn.textContent = 'Memproses…';
+      try { const j = await (await fetch('/api/queues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: currentEventId, customerName: name, whatsappNumber: wa }) })).json();
+        if (j.status === 'success') { myQueueId = j.data.id; localStorage.setItem('sayunk_q', myQueueId); localStorage.setItem('sayunk_e', currentEventId); enterWaiting(); }
+        else { btn.disabled = false; btn.textContent = 'Ambil Antrian Sekarang'; alert(j.message || 'Gagal, coba lagi.'); }
+      } catch (e) { btn.disabled = false; btn.textContent = 'Ambil Antrian Sekarang'; alert('Gagal terhubung.'); }
+    }
+    function enterWaiting() { renderQueueCard('waiting'); socket.emit('join_event_room', currentEventId); refreshMe(); refreshMonitor(); }
+    async function refreshMe() {
+      if (!myQueueId) return;
+      try { const j = await (await fetch('/api/queues/me/' + myQueueId)).json(); if (j.status !== 'success') return;
+        const q = j.data; if ($('myNum')) $('myNum').textContent = `${q.queuePrefix}-${q.queueSequence}`;
+        const ahead = q.aheadCount || 0, est = ahead * (config.avgSessionMinutes || 8);
+        if ($('aheadN')) $('aheadN').textContent = ahead; if ($('estN')) $('estN').textContent = est > 0 ? `~${est}m` : 'Segera';
+        const st = $('myStatus');
+        if (q.status === 'WAITING') { st.className = 'q-status'; st.textContent = ahead === 0 ? 'Kamu berikutnya! Bersiap ya ✨' : 'Menunggu giliran — santai dulu 💅'; }
+        else if (q.status === 'CALLED') { st.className = 'q-status called'; st.textContent = 'GILIRANMU! Ayo masuk booth sekarang 📸🔥'; }
+        else if (q.status === 'DONE' || q.status === 'CANCELED') { localStorage.removeItem('sayunk_q'); localStorage.removeItem('sayunk_e'); st.className = 'q-status'; st.textContent = 'Terima kasih sudah foto di sini! 💜'; setTimeout(() => location.href = '/', 3500); }
+      } catch (e) {}
+    }
+    async function refreshMonitor() {
+      if (!currentEventId || !$('mon')) return;
+      try { const j = await (await fetch('/api/queues/' + currentEventId)).json(); const mon = $('mon'); if (!mon) return;
+        if (!j.data || !j.data.length) { mon.innerHTML = '<span class="skeleton">Belum ada antrian.</span>'; return; }
+        mon.innerHTML = j.data.slice(-12).map((q) => { let cls = 'done', lbl = 'Selesai';
+          if (q.status === 'WAITING') { cls = 'waiting'; lbl = 'Antri'; } if (q.status === 'CALLED') { cls = 'called'; lbl = 'Foto'; } if (q.status === 'CANCELED') { cls = 'done'; lbl = 'Batal'; }
+          return `<div class="qbox ${cls}"><div class="n">${q.queuePrefix}-${q.queueSequence}</div><div class="l">${lbl}</div></div>`; }).join('');
+        mon.scrollLeft = mon.scrollWidth;
+      } catch (e) {}
+    }
+
+    socket.on('queue_updated', () => { refreshMe(); refreshMonitor(); });
+    socket.on('template_updated', loadTemplates);
+    socket.on('content_updated', loadConfig);
+    socket.on('call_customer', (d) => { const my = $('myNum') ? $('myNum').textContent : '';
+      if (my && my === d.queueNumber) { if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 800]);
+        try { const m = new SpeechSynthesisUtterance(`Panggilan untuk nomor antrian ${d.queueNumber}, Kak ${d.customerName}, silakan menuju booth foto sekarang.`); m.lang = 'id-ID'; m.rate = 0.95; speechSynthesis.speak(m); } catch (e) {} } });
+
+    // ---------- GALERI & VIDEO (dari /content/media.json) ----------
+    const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+    async function loadMedia() {
+      let media = { gallery: [], videos: [] };
+      try { const r = await fetch('/api/public/media', { cache: 'no-store' }); const j = await r.json(); if (j.status === 'success') media = j.data; } catch (e) {}
+      const g = media.gallery || [];
+      if (g.length) {
+        $('galleryCard').style.display = '';
+        $('galleryGrid').innerHTML = g.map(function (it) {
+          const cap = it.caption ? `<div class="gcap">${esc(it.caption)}</div>` : '';
+          return `<div class="g" onclick="zoom('${esc(it.src)}')"><img loading="lazy" src="${esc(it.thumb || it.src)}" alt="${esc(it.caption || 'Hasil foto Sayunk')}">${cap}</div>`;
+        }).join('');
+      } else { $('galleryCard').style.display = 'none'; }
+      const v = media.videos || [];
+      if (v.length) {
+        $('videoCard').style.display = '';
+        $('videoRow').innerHTML = v.map(function (it) {
+          const cap = it.caption ? `<div class="rcap">${esc(it.caption)}</div>` : '';
+          const poster = it.poster ? `<img class="poster" src="${esc(it.poster)}" alt="${esc(it.caption || '')}" loading="lazy">` : `<div class="poster ph"></div>`;
+          return `<div class="reel" onclick="openVideo('${esc(it.src)}')">${poster}<div class="play"><b>${PLAY_SVG}</b></div>${cap}</div>`;
+        }).join('');
+      } else { $('videoCard').style.display = 'none'; }
+    }
+    function openVideo(src) {
+      const vid = $('vlbVideo'); vid.src = src; $('vlb').style.display = 'flex';
+      vid.currentTime = 0; vid.play().catch(function () {});
+    }
+    function closeVideo() { const vid = $('vlbVideo'); vid.pause(); vid.removeAttribute('src'); vid.load(); $('vlb').style.display = 'none'; }
+    $('vlb').addEventListener('click', function (e) { if (e.target === this) closeVideo(); });
+    socket.on('media_updated', loadMedia);
+
+    loadConfig(); loadTemplates(); loadMedia(); initQueue();
+  </script>
+
+  <!-- Animasi: smooth scroll + reveal -->
+  <script src="/js/lenis.min.js"></script>
+  <script src="/js/gsap.min.js"></script>
+  <script src="/js/ScrollTrigger.min.js"></script>
+  <script src="/js/anim.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+node_modules/
+.env
+*.log
+
+# Prisma SQLite database (data stays on the server, not in git)
+prisma/*.db
+prisma/*.db-journal
+
+# Media yang diunggah (disimpan di disk / volume persisten, bukan di git)
+public/uploads/
+public/gallery/
+public/videos/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# File sumber di root & paket deploy (bukan bagian aplikasi; logo asli tetap di public/img)
+/Logo.jpg
+/logo.jpg
+/logo.png
+/contoh_prd.md
+*.tar.gz

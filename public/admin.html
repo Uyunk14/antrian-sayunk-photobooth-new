@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#FDFBF7" />
+  <title>Admin · Sayunk Photobooth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg: #FDFBF7; --bg-tint: #F7F1EA; --surface: #FFFFFF; --ink: #2B2733; --ink-soft: #4A4552;
+      --muted: #928B9C; --line: #EFE8DF; --lilac: #8B5CF6; --lilac-deep: #7C3AED; --lilac-soft: #F0EAFF;
+      --peach: #FB7185; --peach-soft: #FFE9EC; --mint: #10B981; --mint-soft: #DAF6EC; --amber: #F59E0B; --amber-soft: #FEF3C7;
+      --radius: 20px; --radius-sm: 14px; --shadow-sm: 0 4px 14px -6px rgba(120,100,160,0.18);
+      --shadow: 0 18px 40px -20px rgba(120,100,160,0.35); --grad: linear-gradient(135deg,#8B5CF6 0%,#C084FC 45%,#FB7185 100%);
+      --sidebar-w: 256px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: 'Manrope', system-ui, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    h1,h2,h3 { margin: 0; font-weight: 800; letter-spacing: -0.02em; }
+    .muted { color: var(--muted); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .grow { flex: 1; }
+    input, select, textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 500; transition: .15s; }
+    input::placeholder, textarea::placeholder { color: #B8B1C2; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--lilac); background: #fff; box-shadow: 0 0 0 4px var(--lilac-soft); }
+    textarea { resize: vertical; min-height: 90px; }
+    label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); display: block; margin: 14px 0 6px; }
+    select option { background: #fff; }
+    .btn { padding: 11px 16px; border: none; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: .15s; color: #fff; background: var(--grad); box-shadow: 0 8px 18px -10px rgba(139,92,246,0.6); }
+    .btn:active { transform: scale(.97); }
+    .btn.sec { background: var(--bg-tint); color: var(--ink); box-shadow: none; }
+    .btn.ok { background: linear-gradient(135deg,#10B981,#34D399); box-shadow: 0 8px 18px -10px rgba(16,185,129,0.6); }
+    .btn.warn { background: linear-gradient(135deg,#F59E0B,#FBBF24); color: #3d2c00; }
+    .btn.danger { background: linear-gradient(135deg,#F43F5E,#FB7185); }
+    .btn.sm { padding: 8px 12px; font-size: 12px; border-radius: 10px; }
+    .btn:disabled { opacity: .5; }
+    .btn svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 7px; }
+    .btn.sm svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
+    .btn svg:only-child { margin-right: 0; }
+    .tpl-thumb .nm svg { width: 13px; height: 13px; vertical-align: -2px; margin-left: 2px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+    .card h3 { font-size: 15.5px; }
+
+    /* ---------- LOGIN ---------- */
+    #login { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+    #login .box { width: 100%; max-width: 380px; }
+    #login .card { text-align: center; padding: 32px 26px; }
+    .logo { width: 58px; height: 58px; border-radius: 17px; background: var(--grad); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 27px; margin: 0 auto 18px; box-shadow: 0 12px 26px -10px rgba(139,92,246,0.6); }
+
+    /* ---------- SHELL ---------- */
+    #app { display: none; }
+    .shell { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line);
+      position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; padding: 22px 16px; z-index: 50; transition: transform .3s ease;
+    }
+    .sidebar .brand { display: flex; align-items: center; gap: 11px; padding: 0 6px 20px; }
+    .sidebar .brand .logo { width: 40px; height: 40px; border-radius: 12px; font-size: 19px; margin: 0; }
+    .sidebar .brand .t { font-weight: 800; font-size: 15px; }
+    .sidebar .brand .t small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); }
+    .nav { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 13px; border: none; background: transparent; color: var(--ink-soft); font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer; text-align: left; width: 100%; transition: .15s; }
+    .nav-item .emo { width: 22px; display: grid; place-items: center; }
+    .nav-item .emo svg { width: 20px; height: 20px; }
+    .login-logo { width: 200px; max-width: 72%; height: auto; display: block; margin: 0 auto 20px; }
+    .sidebar-logo { width: 100%; padding: 2px 4px; }
+    .sidebar-logo img { width: 100%; height: auto; display: block; }
+    .appbar-logo { height: 26px; width: auto; display: block; }
+    .nav-item:hover { background: var(--bg-tint); }
+    .nav-item.active { background: var(--lilac-soft); color: var(--lilac-deep); }
+    .sidebar .foot { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 8px; }
+    .sidebar .who { font-size: 12.5px; font-weight: 700; padding: 0 6px 10px; }
+    .sidebar .who small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; }
+
+    .main { flex: 1; margin-left: var(--sidebar-w); min-width: 0; }
+    .appbar { display: none; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(253,251,247,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 30; }
+    .appbar .l { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+    .appbar .logo { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; margin: 0; }
+    .hamb { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; font-size: 20px; }
+    .backdrop { display: none; position: fixed; inset: 0; background: rgba(43,39,51,0.4); z-index: 40; }
+
+    .content { padding: 26px; max-width: 900px; margin: 0 auto; }
+    .page { display: none; }
+    .page.active { display: block; animation: fade .35s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .page-title { font-size: 22px; margin-bottom: 4px; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-bottom: 20px; font-weight: 500; }
+
+    /* stats */
+    .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+    .stat .b { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow-sm); }
+    .stat .b b { font-size: 28px; display: block; }
+    .stat .b span { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .stat .b.v { background: var(--lilac-soft); border-color: transparent; } .stat .b.v b { color: var(--lilac-deep); }
+    .stat .b.m { background: var(--mint-soft); border-color: transparent; } .stat .b.m b { color: #047857; }
+
+    /* queue items */
+    .qitem { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; margin-bottom: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .qnum { font-weight: 800; font-size: 19px; min-width: 60px; color: var(--lilac-deep); }
+    .qinfo { flex: 1; min-width: 0; }
+    .qinfo .nm { font-weight: 700; font-size: 14.5px; }
+    .badge { font-size: 10.5px; font-weight: 800; padding: 4px 9px; border-radius: 30px; display: inline-block; margin-top: 3px; }
+    .b-waiting { background: var(--lilac-soft); color: var(--lilac-deep); }
+    .b-called { background: var(--mint-soft); color: #047857; }
+    .b-done { background: var(--bg-tint); color: var(--muted); }
+    .b-canceled { background: var(--peach-soft); color: #be123c; }
+
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .tpl-thumb { aspect-ratio: 3/4; border-radius: 13px; overflow: hidden; position: relative; border: 1px solid var(--line); }
+    .tpl-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .tpl-thumb .ov { position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(0,0,0,0.78)); display: flex; flex-direction: column; justify-content: flex-end; padding: 9px; gap: 7px; }
+    .tpl-thumb .nm { font-size: 11px; font-weight: 700; color: #fff; }
+    .list-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .list-row:last-child { border-bottom: none; }
+
+    /* modal */
+    .modal { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(43,39,51,0.45); backdrop-filter: blur(5px); padding: 20px; overflow-y: auto; }
+    .modal .inner { max-width: 440px; margin: 40px auto; background: var(--surface); border-radius: 22px; padding: 24px; box-shadow: var(--shadow); }
+    .qr-img { width: 250px; height: 250px; border-radius: 16px; background: #fff; padding: 12px; margin: 14px auto; display: block; border: 1px solid var(--line); }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 13px 20px; border-radius: 13px; font-size: 13.5px; font-weight: 700; z-index: 200; opacity: 0; transition: .3s; box-shadow: var(--shadow); }
+    .toast.show { opacity: 1; bottom: 34px; }
+    .toast.err { background: #E11D48; }
+    .empty { text-align: center; color: var(--muted); padding: 30px; font-size: 13.5px; font-weight: 500; }
+
+    /* ---------- RESPONSIVE ---------- */
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); box-shadow: var(--shadow); }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .appbar { display: flex; }
+      .backdrop.show { display: block; }
+      .content { padding: 18px 16px 40px; }
+    }
+    @media (max-width: 480px) {
+      .stat { grid-template-columns: 1fr; }
+      .page-title { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="login">
+    <div class="box"><div class="card">
+      <img class="login-logo" src="/img/logo.png" alt="Sayunk Photobooth" />
+      <h1 style="font-size:23px;">Admin Panel</h1>
+      <p class="muted" style="font-size:13.5px;margin-top:5px;">Masuk untuk mengelola antrian</p>
+      <div style="text-align:left;margin-top:18px;">
+        <label>Username</label><input id="loginUser" type="text" autocomplete="username" />
+        <label>Password</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <button class="btn" style="width:100%;margin-top:20px;padding:14px;" onclick="doLogin()">Masuk</button>
+      <p id="loginErr" style="color:#E11D48;font-size:13px;margin-top:12px;font-weight:600;"></p>
+    </div></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="shell">
+      <div class="backdrop" id="backdrop" onclick="closeNav()"></div>
+      <!-- SIDEBAR -->
+      <aside class="sidebar" id="sidebar">
+        <div class="brand" style="flex-direction:column;align-items:stretch;gap:9px;">
+          <div class="sidebar-logo"><img src="/img/logo.png" alt="Sayunk Photobooth" /></div>
+          <span style="font-size:10.5px;font-weight:800;letter-spacing:1.6px;color:var(--muted);text-transform:uppercase;padding-left:4px;">Admin Panel</span>
+        </div>
+        <nav class="nav" id="nav" data-lenis-prevent></nav>
+        <div class="foot">
+          <div class="who" id="whoami"></div>
+          <button class="btn sec sm" style="width:100%;" onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Keluar</button>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <div class="main">
+        <div class="appbar">
+          <div class="l"><img class="appbar-logo" src="/img/logo.png" alt="Sayunk Photobooth" /></div>
+          <button class="hamb" onclick="openNav()" aria-label="Menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        </div>
+        <div class="content">
+          <!-- ANTRIAN -->
+          <div class="page active" id="page-antrian">
+            <h1 class="page-title">Antrian Langsung</h1>
+            <p class="page-sub">Kelola antrian pelanggan secara real-time.</p>
+            <div class="card" style="margin-bottom:16px;">
+              <label>Pilih Event Aktif</label>
+              <select id="qEvent" onchange="loadQueues()"></select>
+            </div>
+            <div class="stat">
+              <div class="b v"><b id="stWaiting">0</b><span>Menunggu</span></div>
+              <div class="b m"><b id="stCalled">0</b><span>Sedang Foto</span></div>
+              <div class="b"><b id="stDone">0</b><span>Selesai</span></div>
+            </div>
+            <div id="queueList"><div class="empty">Pilih event untuk melihat antrian.</div></div>
+          </div>
+
+          <!-- TEMPLATE -->
+          <div class="page" id="page-template">
+            <h1 class="page-title">Template Frame</h1>
+            <p class="page-sub">Upload frame — otomatis dikompres jadi WebP, tidak akan lemot lagi.</p>
+            <div class="card">
+              <h3>Kategori</h3>
+              <div class="row" style="margin-top:12px;"><input id="newCat" class="grow" placeholder="Nama kategori (mis. Wedding)" /><button class="btn" onclick="addCategory()">Tambah</button></div>
+              <div id="catList" style="margin-top:8px;"></div>
+            </div>
+            <div class="card">
+              <h3>Upload Frame</h3>
+              <label>Kategori</label><select id="upCat"></select>
+              <label>Pilih Gambar (bisa banyak)</label><input id="upFiles" type="file" accept="image/*" multiple />
+              <button class="btn" style="margin-top:14px;" onclick="uploadTemplates()" id="upBtn">Upload</button>
+            </div>
+            <div class="card"><h3>Semua Template</h3><div id="tplGrid" class="grid2" style="margin-top:14px;"></div></div>
+          </div>
+
+          <!-- GALERI & VIDEO -->
+          <div class="page" id="page-media">
+            <h1 class="page-title">Galeri & Video</h1>
+            <p class="page-sub">Kelola foto & video yang tampil di halaman pelanggan.</p>
+            <div class="card">
+              <h3>Foto Galeri</h3>
+              <p class="muted" style="font-size:12.5px;margin-top:4px;">Otomatis dikompres jadi WebP. Bisa pilih banyak sekaligus.</p>
+              <label>Pilih Gambar</label><input id="galFiles" type="file" accept="image/*" multiple />
+              <button class="btn" style="margin-top:12px;" id="galUpBtn" onclick="uploadGallery()">Upload Foto</button>
+              <div id="galGrid" class="grid2" style="margin-top:16px;"></div>
+            </div>
+            <div class="card">
+              <h3>Video (portrait)</h3>
+              <p class="muted" style="font-size:12.5px;margin-top:4px;">Video apa pun otomatis dikonversi ke H.264 (kompatibel semua HP) & dikompres. Proses konversi butuh beberapa saat setelah upload.</p>
+              <label>Caption (opsional)</label><input id="vidCap" placeholder="mis. Wedding Setup" />
+              <label>Pilih Video</label><input id="vidFile" type="file" accept="video/*" />
+              <button class="btn" style="margin-top:12px;" id="vidUpBtn" onclick="uploadVideo()">Upload Video</button>
+              <div id="vidList" style="margin-top:16px;"></div>
+            </div>
+          </div>
+
+          <!-- PAKET -->
+          <div class="page" id="page-paket">
+            <h1 class="page-title">Paket & Harga</h1>
+            <p class="page-sub">Atur paket yang tampil di halaman pelanggan.</p>
+            <div class="card">
+              <div class="row" style="justify-content:space-between;"><h3>Daftar Paket</h3><button class="btn sm" onclick="editPackage()">+ Tambah</button></div>
+              <div id="pkgAdmin" style="margin-top:14px;"></div>
+            </div>
+          </div>
+
+          <!-- KONTEN -->
+          <div class="page" id="page-konten">
+            <h1 class="page-title">Konten Halaman</h1>
+            <p class="page-sub">Semua teks & info yang dilihat pelanggan.</p>
+            <div class="card">
+              <h3>Branding & Hero</h3>
+              <label>Nama Booth</label><input id="c_boothName" />
+              <label>Tagline (judul besar di hero)</label><input id="c_tagline" />
+              <label>URL Logo (opsional)</label><input id="c_logoUrl" />
+              <label>Subjudul Hero</label><textarea id="c_heroSubtitle"></textarea>
+              <label>Estimasi durasi 1 sesi (menit)</label><input id="c_avgSessionMinutes" type="number" />
+            </div>
+            <div class="card">
+              <h3>Kontak & Sosial Media</h3>
+              <label>Instagram URL</label><input id="c_instagramUrl" />
+              <label>TikTok URL</label><input id="c_tiktokUrl" />
+              <label>Nomor WhatsApp (62...)</label><input id="c_whatsappNumber" />
+              <label>Alamat</label><input id="c_address" />
+              <label>Jam Buka</label><input id="c_openingHours" />
+              <label>Google Maps URL</label><input id="c_mapsUrl" />
+            </div>
+            <div class="card">
+              <h3>Informasi Pelanggan</h3>
+              <label>Cara Pakai (1 langkah per baris)</label><textarea id="c_howToUse" style="min-height:130px;"></textarea>
+              <label>Aturan Booth (1 aturan per baris)</label><textarea id="c_boothRules" style="min-height:130px;"></textarea>
+            </div>
+            <button class="btn ok" style="width:100%;padding:14px;" onclick="saveContent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>Simpan Semua Konten</button>
+          </div>
+
+          <!-- EVENT -->
+          <div class="page" id="page-event">
+            <h1 class="page-title">Event & QR Code</h1>
+            <p class="page-sub">Buat booth/event dan tampilkan QR untuk pelanggan scan.</p>
+            <div class="card">
+              <h3>Buat Event Baru</h3>
+              <div class="row" style="margin-top:12px;"><input id="evName" class="grow" placeholder="Nama event (mis. Booth Utama)" /><input id="evPrefix" style="width:100px;" placeholder="Prefix (A)" /><button class="btn" onclick="addEvent()">Buat</button></div>
+            </div>
+            <div id="eventList"></div>
+          </div>
+
+          <!-- LAPORAN -->
+          <div class="page" id="page-laporan">
+            <h1 class="page-title">Laporan & Omzet</h1>
+            <p class="page-sub">Ringkasan pendapatan & bot Telegram.</p>
+            <div class="card">
+              <div class="row" style="justify-content:space-between;"><h3>Ringkasan</h3>
+                <select id="repScope" style="width:auto;" onchange="loadReport()"><option value="today">Hari ini</option><option value="yesterday">Kemarin</option><option value="all">Semua</option></select>
+              </div>
+              <div class="stat" style="grid-template-columns:1fr 1fr;margin-top:16px;margin-bottom:0;">
+                <div class="b v"><b id="repCount">0</b><span>Pelanggan</span></div>
+                <div class="b m"><b id="repOmzet">Rp 0</b><span>Omzet</span></div>
+              </div>
+              <button class="btn sec" style="width:100%;margin-top:16px;" onclick="exportExcel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export Excel (semua data)</button>
+            </div>
+            <div class="card">
+              <h3>Bot Telegram</h3>
+              <p class="muted" style="font-size:12.5px;margin-top:4px;">Laporan omzet otomatis tiap hari (sudah diperbaiki: zona WIB & data hari yang benar).</p>
+              <label>Bot Token</label><input id="c_telegramToken" />
+              <label>Chat ID</label><input id="c_telegramChatId" />
+              <label>Jam kirim laporan (0-23, WIB)</label><input id="c_dailyReportHour" type="number" min="0" max="23" />
+              <div class="row" style="margin-top:14px;">
+                <button class="btn sec sm" onclick="testTelegram()">Tes Koneksi</button>
+                <button class="btn sec sm" onclick="reportNow(0)">Kirim Hari Ini</button>
+                <button class="btn sec sm" onclick="reportNow(-1)">Kirim Kemarin</button>
+              </div>
+              <button class="btn ok" style="width:100%;margin-top:14px;" onclick="saveTelegram()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>Simpan Pengaturan Telegram</button>
+            </div>
+          </div>
+
+          <!-- ADMIN -->
+          <div class="page" id="page-admin">
+            <h1 class="page-title">Manajemen Admin</h1>
+            <p class="page-sub">Kelola akun operator (khusus Super Admin).</p>
+            <div class="card">
+              <h3>Tambah Admin</h3>
+              <div class="row" style="margin-top:12px;">
+                <input id="adUser" placeholder="Username" style="flex:1;min-width:120px;" />
+                <input id="adPass" placeholder="Password" style="flex:1;min-width:120px;" />
+                <select id="adRole" style="width:auto;"><option value="ADMIN">Admin</option><option value="SUPERADMIN">Super Admin</option></select>
+                <button class="btn" onclick="addAdmin()">Tambah</button>
+              </div>
+            </div>
+            <div id="adminList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Selesai -->
+  <div class="modal" id="doneModal" data-lenis-prevent><div class="inner">
+    <h3 style="font-size:17px;">Selesaikan Transaksi</h3>
+    <p class="muted" style="font-size:12.5px;" id="doneWho"></p>
+    <label>Paket</label><input id="dPackage" placeholder="mis. Paket Couple" />
+    <label>Harga Total (Rp)</label><input id="dPrice" type="number" placeholder="55000" />
+    <label>Link Hasil Foto (opsional)</label><input id="dLink" placeholder="https://..." />
+    <label class="row" style="margin-top:14px;gap:9px;color:var(--ink);font-weight:700;font-size:13.5px;"><input type="checkbox" id="dWedding" style="width:auto;" /> Potensi klien Wedding</label>
+    <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="closeModal('doneModal')">Batal</button><button class="btn ok grow" onclick="confirmDone()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Selesai</button></div>
+  </div></div>
+
+  <!-- MODAL: QR -->
+  <div class="modal" id="qrModal" data-lenis-prevent><div class="inner" style="text-align:center;">
+    <h3 style="font-size:17px;" id="qrTitle">QR Code</h3>
+    <p class="muted" style="font-size:12.5px;">Tampilkan/cetak QR ini di meja. Diperbarui otomatis tiap 25 detik.</p>
+    <img id="qrImg" class="qr-img" alt="QR" />
+    <p class="muted" style="font-size:11px;word-break:break-all;" id="qrUrl"></p>
+    <button class="btn sec" style="width:100%;margin-top:8px;" onclick="closeQR()">Tutup</button>
+  </div></div>
+
+  <!-- MODAL: Paket -->
+  <div class="modal" id="pkgModal" data-lenis-prevent><div class="inner">
+    <h3 style="font-size:17px;" id="pkgModalTitle">Paket</h3>
+    <input type="hidden" id="pkgId" />
+    <label>Nama Paket</label><input id="pkgName" />
+    <label>Deskripsi singkat</label><input id="pkgDesc" />
+    <label>Harga (Rp)</label><input id="pkgPrice" type="number" />
+    <label>Harga Coret / promo (opsional)</label><input id="pkgOld" type="number" />
+    <label>Fitur (1 per baris)</label><textarea id="pkgFeat"></textarea>
+    <label class="row" style="gap:9px;color:var(--ink);font-weight:700;font-size:13.5px;"><input type="checkbox" id="pkgPopular" style="width:auto;" /> Tandai "Favorit"</label>
+    <div class="row" style="margin-top:18px;"><button class="btn danger sm" id="pkgDelBtn" onclick="deletePackage()">Hapus</button><div class="grow"></div><button class="btn sec" onclick="closeModal('pkgModal')">Batal</button><button class="btn ok" onclick="savePackage()">Simpan</button></div>
+  </div></div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const socket = io();
+    let token = localStorage.getItem('sayunk_admin_token') || '';
+    let me = null, events = [], doneTargetId = null, doneEventId = null, pkgCache = [];
+    const $ = (id) => document.getElementById(id);
+    const rupiah = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
+    const esc = (s) => (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); setTimeout(() => t.className = 'toast', 2600); }
+
+    async function api(path, opts = {}) {
+      opts.headers = Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {});
+      if (opts.body && !(opts.body instanceof FormData)) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.body); }
+      const r = await fetch(path, opts);
+      if (r.status === 401) { logout(); throw new Error('unauth'); }
+      return r.json();
+    }
+
+    // NAV drawer (mobile)
+    function openNav() { $('sidebar').classList.add('open'); $('backdrop').classList.add('show'); }
+    function closeNav() { $('sidebar').classList.remove('open'); $('backdrop').classList.remove('show'); }
+
+    // AUTH
+    async function doLogin() {
+      const username = $('loginUser').value.trim(), password = $('loginPass').value; $('loginErr').textContent = '';
+      try { const j = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })).json();
+        if (j.status === 'success') { token = j.data.token; localStorage.setItem('sayunk_admin_token', token); me = j.data; boot(); }
+        else $('loginErr').textContent = j.message || 'Gagal login';
+      } catch (e) { $('loginErr').textContent = 'Gagal terhubung ke server'; }
+    }
+    function logout() { token = ''; localStorage.removeItem('sayunk_admin_token'); location.reload(); }
+
+    async function boot() {
+      try { me = (await api('/api/auth/me')).data; } catch (e) { return; }
+      $('login').style.display = 'none'; $('app').style.display = 'block';
+      $('whoami').innerHTML = `${esc(me.username)}<small>${me.role}</small>`;
+      buildNav(); loadEvents(); loadContent(); loadTemplatesAdmin(); loadPackages(); loadReport();
+      if (me.role === 'SUPERADMIN') loadAdmins();
+    }
+
+    const SVG = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const ICONS = {
+      antrian: SVG('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.51" y2="6"/><line x1="3.5" y1="12" x2="3.51" y2="12"/><line x1="3.5" y1="18" x2="3.51" y2="18"/>'),
+      template: SVG('<rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'),
+      paket: SVG('<path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1a2 2 0 0 0 0 4v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1a2 2 0 0 0 0-4z"/><path d="M13 7v10"/>'),
+      konten: SVG('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+      event: SVG('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3M14 18v3M18 21h3M21 14v3"/>'),
+      laporan: SVG('<line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="10"/>'),
+      admin: SVG('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+      media: SVG('<rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/>'),
+    };
+    // Ikon aksi (dipakai di tombol dinamis)
+    const A = {
+      bell: SVG('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+      check: SVG('<path d="M20 6L9 17l-5-5"/>'),
+      x: SVG('<path d="M18 6L6 18M6 6l12 12"/>'),
+      trash: SVG('<path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>'),
+      eyeoff: SVG('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>'),
+    };
+    const NAV = [['antrian','Antrian'],['template','Template'],['media','Galeri & Video'],['paket','Paket'],['konten','Konten'],['event','Event & QR'],['laporan','Laporan'],['admin','Admin']];
+    function buildNav() {
+      $('nav').innerHTML = NAV.filter(([id]) => id !== 'admin' || me.role === 'SUPERADMIN')
+        .map(([id, label], i) => `<button class="nav-item ${i === 0 ? 'active' : ''}" data-t="${id}" onclick="switchTab('${id}')"><span class="emo">${ICONS[id]}</span> ${label}</button>`).join('');
+    }
+    function switchTab(id) {
+      document.querySelectorAll('.nav-item').forEach((t) => t.classList.toggle('active', t.dataset.t === id));
+      document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+      $('page-' + id).classList.add('active'); closeNav();
+      if (id === 'antrian') loadQueues(); if (id === 'laporan') loadReport(); if (id === 'media') loadMediaAdmin();
+    }
+
+    // EVENTS
+    async function loadEvents() {
+      events = (await api('/api/events')).data || [];
+      const sel = $('qEvent'); const prev = sel.value; const active = events.filter((e) => e.isActive);
+      sel.innerHTML = (active.length ? active : events).map((e) => `<option value="${e.id}">${esc(e.name)} (${esc(e.prefix)})${e.isActive ? '' : ' — nonaktif'}</option>`).join('') || '<option>Belum ada event</option>';
+      if (prev) sel.value = prev;
+      renderEventList(); loadQueues();
+    }
+    function renderEventList() {
+      $('eventList').innerHTML = events.map((e) => `<div class="card"><div class="row" style="justify-content:space-between;">
+        <div><b style="font-size:15px;">${esc(e.name)}</b> <span class="muted" style="font-size:12px;">· prefix ${esc(e.prefix)}</span><div style="margin-top:5px;"><span class="badge ${e.isActive ? 'b-called' : 'b-canceled'}">${e.isActive ? 'AKTIF' : 'NONAKTIF'}</span></div></div>
+        <div class="row" style="gap:6px;"><button class="btn sm ${e.isActive ? 'warn' : 'ok'}" onclick="toggleEvent('${e.id}', ${!e.isActive})">${e.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button><button class="btn sm sec" onclick="showQR('${e.id}','${esc(e.name)}')">QR</button><button class="btn sm danger" onclick="delEvent('${e.id}')">${A.trash}</button></div>
+      </div></div>`).join('') || '<div class="empty">Belum ada event.</div>';
+    }
+    async function addEvent() { const name = $('evName').value.trim(), prefix = ($('evPrefix').value.trim() || 'A').toUpperCase(); if (!name) return toast('Nama event wajib diisi', true); await api('/api/events', { method: 'POST', body: { name, prefix } }); $('evName').value=''; $('evPrefix').value=''; toast('Event dibuat'); loadEvents(); }
+    async function toggleEvent(id, active) { await api('/api/events/' + id, { method: 'PATCH', body: { isActive: active } }); toast('Diperbarui'); loadEvents(); }
+    async function delEvent(id) { if (!confirm('Hapus event ini beserta semua antriannya?')) return; await api('/api/events/' + id, { method: 'DELETE' }); toast('Dihapus'); loadEvents(); }
+    let qrTimer = null;
+    async function showQR(id, name) { $('qrTitle').textContent = 'QR · ' + name; $('qrModal').style.display = 'block';
+      const refresh = async () => { const r = await api('/api/events/' + id + '/qr'); $('qrImg').src = r.qrImage; $('qrUrl').textContent = r.scanUrl; };
+      await refresh(); qrTimer = setInterval(refresh, 25000); }
+    function closeQR() { $('qrModal').style.display = 'none'; if (qrTimer) clearInterval(qrTimer); }
+
+    // QUEUES
+    async function loadQueues() {
+      const eventId = $('qEvent').value;
+      if (!eventId || eventId === 'Belum ada event') { $('queueList').innerHTML = '<div class="empty">Belum ada event aktif.</div>'; return; }
+      const qs = (await api('/api/queues/' + eventId)).data || [];
+      $('stWaiting').textContent = qs.filter((q) => q.status === 'WAITING').length;
+      $('stCalled').textContent = qs.filter((q) => q.status === 'CALLED').length;
+      $('stDone').textContent = qs.filter((q) => q.status === 'DONE').length;
+      const active = qs.filter((q) => q.status === 'WAITING' || q.status === 'CALLED');
+      $('queueList').innerHTML = active.map((q) => `<div class="qitem"><div class="qnum">${q.queuePrefix}-${q.queueSequence}</div>
+        <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.status === 'CALLED' ? 'b-called' : 'b-waiting'}">${q.status === 'CALLED' ? 'Sedang Foto' : 'Menunggu'}</span></div>
+        <div class="row" style="gap:6px;">${q.status === 'WAITING' ? `<button class="btn sm" onclick="callQ('${q.id}')">${A.bell}Panggil</button>` : ''}<button class="btn sm ok" onclick="openDone('${q.id}','${eventId}','${esc(q.customerName)}','${q.queuePrefix}-${q.queueSequence}')">${A.check}Selesai</button><button class="btn sm danger" onclick="cancelQ('${q.id}')">${A.x}</button></div>
+      </div>`).join('') || '<div class="empty">Tidak ada antrian aktif. 🎉</div>';
+    }
+    async function callQ(id) { await api('/api/queues/call/' + id, { method: 'POST' }); toast('Dipanggil 📢'); loadQueues(); }
+    async function cancelQ(id) { if (!confirm('Batalkan antrian ini?')) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
+    function openDone(id, eventId, name, num) { doneTargetId = id; doneEventId = eventId; $('doneWho').textContent = `${num} · ${name}`; $('dPackage').value=''; $('dPrice').value=''; $('dLink').value=''; $('dWedding').checked=false; $('doneModal').style.display = 'block'; }
+    async function confirmDone() { await api('/api/queues/done/' + doneTargetId, { method: 'POST', body: { eventId: doneEventId, packageName: $('dPackage').value, finalPrice: $('dPrice').value || 0, basePrice: $('dPrice').value || 0, photoLink: $('dLink').value, isPotentialWedding: $('dWedding').checked } }); closeModal('doneModal'); toast('Transaksi selesai ✓'); loadQueues(); loadReport(); }
+    function closeModal(id) { $(id).style.display = 'none'; }
+
+    // TEMPLATES
+    async function loadTemplatesAdmin() {
+      const cats = (await api('/api/categories')).data || [];
+      $('catList').innerHTML = cats.map((c) => `<div class="list-row"><span style="font-weight:600;">${esc(c.name)} <span class="badge ${c.isActive ? 'b-called' : 'b-canceled'}">${c.isActive ? 'aktif' : 'sembunyi'}</span></span><div class="row" style="gap:6px;"><button class="btn sm sec" onclick="toggleCat('${c.id}', ${!c.isActive})">${c.isActive ? 'Sembunyikan' : 'Tampilkan'}</button><button class="btn sm danger" onclick="delCat('${c.id}')">${A.trash}</button></div></div>`).join('') || '<div class="empty">Belum ada kategori.</div>';
+      $('upCat').innerHTML = cats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('') || '<option value="">Buat kategori dulu</option>';
+      const tpls = (await api('/api/admin/templates')).data || [];
+      $('tplGrid').innerHTML = tpls.map((t) => `<div class="tpl-thumb"><img loading="lazy" src="${esc(t.thumbUrl || t.imageUrl)}" alt=""><div class="ov"><span class="nm">${esc(t.name)} ${t.isActive ? '' : A.eyeoff}</span><div class="row" style="gap:5px;"><button class="btn sm sec" onclick="toggleTpl('${t.id}', ${!t.isActive})">${t.isActive ? 'Hide' : 'Show'}</button><button class="btn sm danger" onclick="delTpl('${t.id}')">${A.trash}</button></div></div></div>`).join('') || '<div class="empty" style="grid-column:1/-1;">Belum ada template.</div>';
+    }
+    async function addCategory() { const name = $('newCat').value.trim(); if (!name) return; await api('/api/categories', { method: 'POST', body: { name } }); $('newCat').value=''; toast('Kategori ditambah'); loadTemplatesAdmin(); }
+    async function toggleCat(id, active) { await api('/api/categories/' + id, { method: 'PATCH', body: { isActive: active } }); loadTemplatesAdmin(); }
+    async function delCat(id) { if (!confirm('Hapus kategori & semua template di dalamnya?')) return; await api('/api/categories/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
+    async function uploadTemplates() {
+      const files = $('upFiles').files, catId = $('upCat').value;
+      if (!catId) return toast('Buat/pilih kategori dulu', true); if (!files.length) return toast('Pilih gambar dulu', true);
+      const fd = new FormData(); fd.append('categoryId', catId); for (const f of files) fd.append('images', f);
+      $('upBtn').disabled = true; $('upBtn').textContent = 'Mengunggah…';
+      try { const j = await api('/api/templates/upload', { method: 'POST', body: fd }); if (j.status === 'success') { toast('Berhasil upload ' + j.data.length + ' gambar'); $('upFiles').value=''; loadTemplatesAdmin(); } else toast(j.message || 'Gagal upload', true); }
+      catch (e) { toast('Gagal upload', true); }
+      $('upBtn').disabled = false; $('upBtn').textContent = 'Upload';
+    }
+    async function toggleTpl(id, active) { await api('/api/templates/' + id, { method: 'PATCH', body: { isActive: active } }); loadTemplatesAdmin(); }
+    async function delTpl(id) { if (!confirm('Hapus template ini?')) return; await api('/api/templates/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
+
+    // PACKAGES
+    async function loadPackages() {
+      pkgCache = (await api('/api/packages')).data || [];
+      $('pkgAdmin').innerHTML = pkgCache.map((p) => `<div class="list-row"><div><b>${esc(p.name)}</b> ${p.isPopular ? '<span class="badge b-waiting">Favorit</span>' : ''} ${p.isActive ? '' : '<span class="badge b-canceled">nonaktif</span>'}<div class="muted" style="font-size:13px;font-weight:600;">${rupiah(p.price)}</div></div><button class="btn sm sec" onclick="editPackage('${p.id}')">Edit</button></div>`).join('') || '<div class="empty">Belum ada paket.</div>';
+    }
+    function editPackage(id) {
+      const p = pkgCache.find((x) => x.id === id) || {};
+      $('pkgModalTitle').textContent = id ? 'Edit Paket' : 'Tambah Paket';
+      $('pkgId').value = id || ''; $('pkgName').value = p.name || ''; $('pkgDesc').value = p.description || '';
+      $('pkgPrice').value = p.price || ''; $('pkgOld').value = p.oldPrice || ''; $('pkgFeat').value = p.features || '';
+      $('pkgPopular').checked = !!p.isPopular; $('pkgDelBtn').style.display = id ? 'block' : 'none'; $('pkgModal').style.display = 'block';
+    }
+    async function savePackage() {
+      const id = $('pkgId').value;
+      const body = { name: $('pkgName').value, description: $('pkgDesc').value, price: $('pkgPrice').value || 0, oldPrice: $('pkgOld').value || null, features: $('pkgFeat').value, isPopular: $('pkgPopular').checked, isActive: true };
+      if (id) await api('/api/packages/' + id, { method: 'PATCH', body }); else await api('/api/packages', { method: 'POST', body });
+      closeModal('pkgModal'); toast('Paket disimpan'); loadPackages();
+    }
+    async function deletePackage() { const id = $('pkgId').value; if (!id || !confirm('Hapus paket ini?')) return; await api('/api/packages/' + id, { method: 'DELETE' }); closeModal('pkgModal'); toast('Dihapus'); loadPackages(); }
+
+    // CONTENT
+    const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','telegramToken','telegramChatId','dailyReportHour'];
+    async function loadContent() { const s = (await api('/api/settings')).data || {}; CF.forEach((f) => { const el = $('c_' + f); if (el) el.value = s[f] == null ? '' : s[f]; }); }
+    async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules'].forEach((f) => body[f] = $('c_' + f).value); await api('/api/settings', { method: 'POST', body }); toast('Konten tersimpan ✓'); }
+    async function saveTelegram() { await api('/api/settings', { method: 'POST', body: { telegramToken: $('c_telegramToken').value, telegramChatId: $('c_telegramChatId').value, dailyReportHour: $('c_dailyReportHour').value || 23 } }); toast('Pengaturan Telegram tersimpan ✓'); }
+    async function testTelegram() { const j = await api('/api/telegram/test', { method: 'POST', body: { token: $('c_telegramToken').value, chatId: $('c_telegramChatId').value } }); toast(j.status === 'success' ? 'Pesan tes terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
+    async function reportNow(day) { const j = await api('/api/telegram/report-now', { method: 'POST', body: { day } }); toast(j.status === 'success' ? 'Laporan terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
+
+    // REPORT
+    async function loadReport() { const r = await api('/api/analytics?scope=' + $('repScope').value); $('repCount').textContent = r.summary ? r.summary.count : 0; $('repOmzet').textContent = rupiah(r.summary ? r.summary.omzet : 0); }
+    async function exportExcel() { const r = await fetch('/api/export/excel', { headers: { Authorization: 'Bearer ' + token } }); if (!r.ok) return toast('Gagal export', true); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'Laporan_Sayunk.xlsx'; a.click(); URL.revokeObjectURL(url); }
+
+    // ADMINS
+    async function loadAdmins() {
+      const admins = (await api('/api/admins')).data || [];
+      $('adminList').innerHTML = admins.map((a) => `<div class="card"><div class="row" style="justify-content:space-between;"><div><b>${esc(a.username)}</b> <span class="badge ${a.role === 'SUPERADMIN' ? 'b-waiting' : 'b-done'}">${a.role}</span> ${a.isActive ? '' : '<span class="badge b-canceled">nonaktif</span>'}</div><div class="row" style="gap:6px;">${a.id !== me.id ? `<button class="btn sm sec" onclick="toggleAdmin(${a.id}, ${!a.isActive})">${a.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button><button class="btn sm danger" onclick="delAdmin(${a.id})">${A.trash}</button>` : '<span class="muted" style="font-size:12px;">(kamu)</span>'}</div></div></div>`).join('');
+    }
+    async function addAdmin() { const username = $('adUser').value.trim(), password = $('adPass').value, role = $('adRole').value; if (!username || !password) return toast('Username & password wajib', true); const j = await api('/api/admins', { method: 'POST', body: { username, password, role } }); if (j.status === 'success') { toast('Admin ditambah'); $('adUser').value=''; $('adPass').value=''; loadAdmins(); } else toast(j.message || 'Gagal', true); }
+    async function toggleAdmin(id, active) { await api('/api/admins/' + id, { method: 'PATCH', body: { isActive: active } }); loadAdmins(); }
+    async function delAdmin(id) { if (!confirm('Hapus admin ini?')) return; await api('/api/admins/' + id, { method: 'DELETE' }); toast('Dihapus'); loadAdmins(); }
+
+    // ---------- MEDIA: GALERI & VIDEO ----------
+    async function loadMediaAdmin() {
+      const photos = (await api('/api/gallery')).data || [];
+      $('galGrid').innerHTML = photos.length ? photos.map(function (p) {
+        return `<div style="border:1px solid var(--line);border-radius:14px;overflow:hidden;">
+          <div style="aspect-ratio:4/5;position:relative;background:var(--bg-tint);"><img loading="lazy" src="${esc(p.thumbUrl || p.imageUrl)}" style="width:100%;height:100%;object-fit:cover;">${p.isActive ? '' : '<span class="badge b-canceled" style="position:absolute;top:6px;left:6px;">disembunyikan</span>'}</div>
+          <div style="padding:8px;"><input value="${esc(p.caption || '')}" placeholder="Caption…" onchange="savePhotoCaption('${p.id}', this.value)" style="font-size:12px;padding:8px;">
+            <div class="row" style="gap:5px;margin-top:6px;"><button class="btn sm sec" onclick="togglePhoto('${p.id}', ${!p.isActive})">${p.isActive ? 'Sembunyikan' : 'Tampilkan'}</button><button class="btn sm danger" onclick="delPhoto('${p.id}')">${A.trash}</button></div>
+          </div></div>`;
+      }).join('') : '<div class="empty" style="grid-column:1/-1;">Belum ada foto.</div>';
+
+      const vids = (await api('/api/videos')).data || [];
+      $('vidList').innerHTML = vids.length ? vids.map(function (v) {
+        const st = v.status === 'READY' ? '' : `<span class="badge ${v.status === 'FAILED' ? 'b-canceled' : 'b-waiting'}">${v.status === 'FAILED' ? 'gagal' : 'memproses…'}</span>`;
+        const poster = v.posterUrl ? `<img src="${esc(v.posterUrl)}" style="width:46px;height:62px;object-fit:cover;border-radius:8px;">` : `<div style="width:46px;height:62px;border-radius:8px;background:var(--bg-tint);display:grid;place-items:center;">🎬</div>`;
+        return `<div class="list-row"><div class="row" style="gap:10px;flex:1;min-width:0;">${poster}<div style="flex:1;min-width:0;"><input value="${esc(v.caption || '')}" placeholder="Caption…" onchange="saveVideoCaption('${v.id}', this.value)" style="font-size:12px;padding:8px;"><div style="margin-top:5px;">${st}${v.isActive ? '' : ' <span class="badge b-canceled">disembunyikan</span>'}</div></div></div>
+          <div class="row" style="gap:5px;"><button class="btn sm sec" onclick="toggleVideo('${v.id}', ${!v.isActive})">${v.isActive ? 'Sembunyikan' : 'Tampilkan'}</button><button class="btn sm danger" onclick="delVideo('${v.id}')">${A.trash}</button></div></div>`;
+      }).join('') : '<div class="empty">Belum ada video.</div>';
+    }
+    async function uploadGallery() {
+      const files = $('galFiles').files; if (!files.length) return toast('Pilih gambar dulu', true);
+      const fd = new FormData(); for (const f of files) fd.append('images', f);
+      $('galUpBtn').disabled = true; $('galUpBtn').textContent = 'Mengunggah…';
+      try { const j = await api('/api/gallery/upload', { method: 'POST', body: fd }); if (j.status === 'success') { toast('Berhasil upload ' + j.data.length + ' foto'); $('galFiles').value = ''; loadMediaAdmin(); } else toast(j.message || 'Gagal', true); }
+      catch (e) { toast('Gagal upload', true); }
+      $('galUpBtn').disabled = false; $('galUpBtn').textContent = 'Upload Foto';
+    }
+    async function savePhotoCaption(id, val) { await api('/api/gallery/' + id, { method: 'PATCH', body: { caption: val } }); toast('Caption disimpan ✓'); }
+    async function togglePhoto(id, a) { await api('/api/gallery/' + id, { method: 'PATCH', body: { isActive: a } }); loadMediaAdmin(); }
+    async function delPhoto(id) { if (!confirm('Hapus foto ini?')) return; await api('/api/gallery/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
+    async function uploadVideo() {
+      const f = $('vidFile').files[0]; if (!f) return toast('Pilih video dulu', true);
+      const fd = new FormData(); fd.append('video', f); fd.append('caption', $('vidCap').value);
+      $('vidUpBtn').disabled = true; $('vidUpBtn').textContent = 'Mengunggah…';
+      try { const j = await api('/api/videos/upload', { method: 'POST', body: fd }); if (j.status === 'success') { toast('Video diunggah, sedang dikonversi…'); $('vidFile').value = ''; $('vidCap').value = ''; loadMediaAdmin(); } else toast(j.message || 'Gagal', true); }
+      catch (e) { toast('Gagal upload video', true); }
+      $('vidUpBtn').disabled = false; $('vidUpBtn').textContent = 'Upload Video';
+    }
+    async function saveVideoCaption(id, val) { await api('/api/videos/' + id, { method: 'PATCH', body: { caption: val } }); toast('Caption disimpan ✓'); }
+    async function toggleVideo(id, a) { await api('/api/videos/' + id, { method: 'PATCH', body: { isActive: a } }); loadMediaAdmin(); }
+    async function delVideo(id) { if (!confirm('Hapus video ini?')) return; await api('/api/videos/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
+    socket.on('media_updated', () => { if ($('page-media').classList.contains('active')) loadMediaAdmin(); });
+
+    socket.on('queue_updated', () => { if ($('page-antrian').classList.contains('active')) loadQueues(); });
+    socket.on('force_logout', (id) => { if (me && me.id === id) { toast('Akun dinonaktifkan', true); setTimeout(logout, 1500); } });
+
+    if (token) boot(); else $('login').style.display = 'grid';
+  </script>
+
+  <!-- Animasi: smooth scroll + reveal antar-tab -->
+  <script src="/js/lenis.min.js"></script>
+  <script src="/js/gsap.min.js"></script>
+  <script src="/js/ScrollTrigger.min.js"></script>
+  <script src="/js/anim.js"></script>
+</body>
+</html>

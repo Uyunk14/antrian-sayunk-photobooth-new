@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Event / Cabang / Acara
+model Event {
+  id        String   @id @default(uuid())
+  name      String
+  prefix    String
+  qrSecret  String
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  queues    Queue[]
+}
+
+// 2. Antrian pelanggan
+model Queue {
+  id                 String   @id @default(uuid())
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id])
+  queuePrefix        String
+  queueSequence      Int
+  customerName       String
+  whatsappNumber     String
+  status             String   @default("WAITING") // WAITING | CALLED | DONE | CANCELED
+  photoLink          String?
+  packageName        String?
+  basePrice          Int?
+  discountType       String?
+  discountAmount     Int?
+  finalPrice         Int?
+  isPotentialWedding Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([eventId, status])
+  @@index([createdAt])
+}
+
+// 3. Kategori template frame
+model TemplateCategory {
+  id        String     @id @default(uuid())
+  name      String
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  templates Template[]
+}
+
+// 4. Item template frame (gambar disimpan sebagai FILE, bukan base64)
+model Template {
+  id         String           @id @default(uuid())
+  categoryId String
+  category   TemplateCategory @relation(fields: [categoryId], references: [id])
+  name       String
+  imageUrl   String // path file penuh, mis. /uploads/templates/abc.webp
+  thumbUrl   String? // path thumbnail terkompres untuk grid (cepat)
+  sortOrder  Int              @default(0)
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+}
+
+// 5. Paket & harga (ditampilkan ke pelanggan)
+model Package {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Int      @default(0)
+  oldPrice    Int? // untuk menampilkan harga coret / promo
+  features    String? // daftar fitur dipisah baris baru
+  isPopular   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+}
+
+// 6. Pengaturan global + konten yang tampil ke pelanggan
+model Setting {
+  id               Int     @id @default(autoincrement())
+  // Branding
+  boothName        String  @default("Sayunk Photobooth")
+  tagline          String  @default("capture every vibe.")
+  logoUrl          String?
+  heroSubtitle     String?
+  // Estimasi antrian
+  avgSessionMinutes Int    @default(8)
+  // Kontak & sosial media
+  instagramUrl     String?
+  tiktokUrl        String?
+  whatsappNumber   String?
+  address          String?
+  openingHours     String?
+  mapsUrl          String?
+  // Konten informasi (dipisah baris baru untuk jadi list)
+  howToUse         String?
+  boothRules       String?
+  // Integrasi
+  whatsappTemplate String?
+  telegramToken    String?
+  telegramChatId   String?
+  dailyReportHour  Int     @default(23) // jam kirim laporan (WIB)
+  maxDeviceLimit   Int     @default(3)
+}
+
+// 7a. Galeri hasil foto (ditampilkan ke pelanggan)
+model GalleryPhoto {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  thumbUrl  String?
+  caption   String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// 7b. Video (portrait) — dikonversi ke H.264 saat upload
+model Video {
+  id        String   @id @default(uuid())
+  videoUrl  String?
+  posterUrl String?
+  caption   String?
+  status    String   @default("READY") // PROCESSING | READY | FAILED
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// 8. Kredensial admin (password DI-HASH dengan bcrypt)
+model Admin {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  role      String   @default("ADMIN") // ADMIN | SUPERADMIN
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
