@@ -789,6 +789,20 @@ app.get('/api/analytics', requireAuth, async (req, res) => {
   }
 });
 
+// Riwayat lengkap (DONE + CANCELED) untuk rekap & grafik
+app.get('/api/analytics/history', requireAuth, async (req, res) => {
+  try {
+    const data = await prisma.queue.findMany({
+      where: { status: { in: ['DONE', 'CANCELED'] } },
+      include: { event: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    ok(res, data);
+  } catch (e) {
+    fail(res, 500, 'Gagal memuat riwayat');
+  }
+});
+
 app.get('/api/export/excel', requireAuth, async (req, res) => {
   try {
     const queues = await prisma.queue.findMany({
