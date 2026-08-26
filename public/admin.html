@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/html5-qrcode.min.js"></script>
   <style>
     :root {
       --bg: #FDFBF7; --bg-tint: #F7F1EA; --surface: #FFFFFF; --ink: #2B2733; --ink-soft: #4A4552;
@@ -42,6 +43,13 @@
     .btn.sm svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
     .btn svg:only-child { margin-right: 0; }
     .tpl-thumb .nm svg { width: 13px; height: 13px; vertical-align: -2px; margin-left: 2px; }
+    .link-row { display: flex; gap: 7px; margin-bottom: 8px; align-items: center; }
+    .link-row .link-in { flex: 1; }
+    .link-row .btn { padding: 10px 11px; }
+    .final-box { margin-top: 12px; padding: 12px 14px; background: var(--lilac-soft); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .final-box .l { font-weight: 700; font-size: 13px; color: var(--lilac-deep); }
+    .final-box .v { font-weight: 800; font-size: 19px; color: var(--lilac-deep); }
+    #reader { width: 100%; border-radius: 12px; overflow: hidden; margin: 12px 0; }
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
     .card h3 { font-size: 15.5px; }
 
@@ -340,9 +348,17 @@
   <div class="modal" id="doneModal" data-lenis-prevent><div class="inner">
     <h3 style="font-size:17px;">Selesaikan Transaksi</h3>
     <p class="muted" style="font-size:12.5px;" id="doneWho"></p>
-    <label>Paket</label><input id="dPackage" placeholder="mis. Paket Couple" />
-    <label>Harga Total (Rp)</label><input id="dPrice" type="number" placeholder="55000" />
-    <label>Link Hasil Foto (opsional)</label><input id="dLink" placeholder="https://..." />
+    <label>Paket (opsional)</label><input id="dPackage" placeholder="mis. Paket Couple" />
+    <label>Harga Dasar (Rp)</label><input id="dBase" type="number" placeholder="55000" oninput="calcDone()" />
+    <label>Diskon</label>
+    <div class="row" style="gap:8px;">
+      <select id="dDiscType" style="flex:1;" onchange="calcDone()"><option value="NONE">Tanpa diskon</option><option value="NOMINAL">Nominal (Rp)</option><option value="PERCENTAGE">Persen (%)</option></select>
+      <input id="dDiscAmt" type="number" style="flex:1;" placeholder="0" oninput="calcDone()" />
+    </div>
+    <div class="final-box"><span class="l">Harga Akhir</span><span class="v">Rp <span id="dFinal">0</span></span></div>
+    <label>Link Hasil Foto (opsional, bisa lebih dari satu)</label>
+    <div id="dLinkContainer"></div>
+    <button class="btn sec sm" style="margin-top:6px;" onclick="addLinkRow('dLinkContainer')">+ Tambah Link</button>
     <label class="row" style="margin-top:14px;gap:9px;color:var(--ink);font-weight:700;font-size:13.5px;"><input type="checkbox" id="dWedding" style="width:auto;" /> Potensi klien Wedding</label>
     <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="closeModal('doneModal')">Batal</button><button class="btn ok grow" onclick="confirmDone()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Selesai</button></div>
   </div></div>
@@ -359,11 +375,21 @@
 
   <!-- MODAL: Link Foto & Kirim WA -->
   <div class="modal" id="waModal" data-lenis-prevent><div class="inner">
-    <h3 style="font-size:17px;">Link Hasil Foto</h3>
+    <h3 style="font-size:17px;">Link Hasil Foto &amp; Kirim WA</h3>
     <p class="muted" style="font-size:12.5px;" id="waWho"></p>
     <p class="muted" style="font-size:12px;font-weight:700;" id="waNumber"></p>
-    <label>Link Hasil Foto</label><input id="waLink" placeholder="https://drive.google.com/..." />
+    <label>Link Hasil Foto (bisa lebih dari satu)</label>
+    <div id="waLinkContainer"></div>
+    <button class="btn sec sm" style="margin-top:6px;" onclick="addLinkRow('waLinkContainer')">+ Tambah Link</button>
     <div class="row" style="margin-top:18px;"><button class="btn sec grow" onclick="saveLink(false)">Simpan saja</button><button class="btn ok grow" onclick="saveLink(true)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.5A10 10 0 1 0 12 2z"/></svg>Kirim ke WA</button></div>
+  </div></div>
+
+  <!-- MODAL: Scanner QR -->
+  <div class="modal" id="scannerModal" data-lenis-prevent><div class="inner" style="text-align:center;">
+    <h3 style="font-size:17px;">Scan QR Link Foto</h3>
+    <p class="muted" style="font-size:12.5px;">Arahkan kamera ke QR dari aplikasi foto (dslrBooth, dll). Link akan terisi otomatis.</p>
+    <div id="reader"></div>
+    <button class="btn sec" style="width:100%;" onclick="closeScanner()">Tutup Scanner</button>
   </div></div>
 
   <!-- MODAL: QR -->
@@ -448,6 +474,7 @@
       x: SVG('<path d="M18 6L6 18M6 6l12 12"/>'),
       trash: SVG('<path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>'),
       eyeoff: SVG('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>'),
+      cam: SVG('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
     };
     const NAV = [['antrian','Antrian'],['template','Template'],['media','Galeri & Video'],['paket','Paket'],['konten','Konten'],['event','Event & QR'],['laporan','Laporan'],['admin','Admin']];
     function buildNav() {
@@ -520,8 +547,58 @@
     }
     async function callQ(id) { await api('/api/queues/call/' + id, { method: 'POST' }); toast('Dipanggil 📢'); loadQueues(); }
     async function cancelQ(id) { if (!confirm('Batalkan antrian ini?')) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
-    function openDone(id, eventId, name, num) { doneTargetId = id; doneEventId = eventId; $('doneWho').textContent = `${num} · ${name}`; $('dPackage').value=''; $('dPrice').value=''; $('dLink').value=''; $('dWedding').checked=false; $('doneModal').style.display = 'block'; }
-    async function confirmDone() { await api('/api/queues/done/' + doneTargetId, { method: 'POST', body: { eventId: doneEventId, packageName: $('dPackage').value, finalPrice: $('dPrice').value || 0, basePrice: $('dPrice').value || 0, photoLink: $('dLink').value, isPotentialWedding: $('dWedding').checked } }); closeModal('doneModal'); toast('Transaksi selesai ✓'); loadQueues(); loadReport(); }
+    // --- Helper: baris link (multi-link + scan QR) ---
+    function linkRowHTML(val) {
+      return `<div class="link-row"><input type="text" class="link-in" placeholder="Tempel / scan link foto" value="${esc(val || '')}" /><button class="btn sec" title="Scan QR" onclick="openScanner(this)">${A.cam}</button><button class="btn danger" title="Hapus" onclick="this.closest('.link-row').remove()">${A.x}</button></div>`;
+    }
+    function renderLinks(containerId, text) {
+      const links = (text || '').split('\n').map((s) => s.trim()).filter(Boolean);
+      $(containerId).innerHTML = (links.length ? links : ['']).map(linkRowHTML).join('');
+    }
+    function addLinkRow(containerId) { $(containerId).insertAdjacentHTML('beforeend', linkRowHTML('')); }
+    function collectLinks(containerId) {
+      return Array.from(document.querySelectorAll('#' + containerId + ' .link-in')).map((i) => i.value.trim()).filter(Boolean).join('\n');
+    }
+    // --- Hitung diskon otomatis ---
+    function calcDone() {
+      const base = parseInt($('dBase').value) || 0, type = $('dDiscType').value, amt = parseInt($('dDiscAmt').value) || 0;
+      let f = base;
+      if (type === 'NOMINAL') f = base - amt;
+      else if (type === 'PERCENTAGE') f = base - Math.round(base * amt / 100);
+      if (f < 0) f = 0;
+      $('dFinal').textContent = f.toLocaleString('id-ID');
+      return f;
+    }
+    function openDone(id, eventId, name, num) {
+      doneTargetId = id; doneEventId = eventId; $('doneWho').textContent = `${num} · ${name}`;
+      $('dPackage').value = ''; $('dBase').value = ''; $('dDiscType').value = 'NONE'; $('dDiscAmt').value = ''; $('dWedding').checked = false;
+      renderLinks('dLinkContainer', ''); calcDone();
+      $('doneModal').style.display = 'block';
+    }
+    async function confirmDone() {
+      const base = parseInt($('dBase').value) || 0, final = calcDone();
+      await api('/api/queues/done/' + doneTargetId, { method: 'POST', body: {
+        eventId: doneEventId, packageName: $('dPackage').value, basePrice: base,
+        discountType: $('dDiscType').value, discountAmount: parseInt($('dDiscAmt').value) || 0,
+        finalPrice: final, photoLink: collectLinks('dLinkContainer'), isPotentialWedding: $('dWedding').checked } });
+      closeModal('doneModal'); toast('Transaksi selesai ✓'); loadQueues(); loadReport();
+    }
+    // --- Scanner QR kamera ---
+    let qrScanner = null, scanTargetInput = null;
+    function openScanner(btn) {
+      scanTargetInput = btn.closest('.link-row').querySelector('.link-in');
+      $('scannerModal').style.display = 'block';
+      if (typeof Html5Qrcode === 'undefined') { toast('Library scanner belum termuat', true); return; }
+      qrScanner = new Html5Qrcode('reader');
+      qrScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 220 },
+        (text) => { if (scanTargetInput) scanTargetInput.value = text; toast('Link ter-scan ✓'); closeScanner(); },
+        () => {}
+      ).catch(() => { toast('Tidak bisa buka kamera (izinkan akses & pakai HTTPS)', true); });
+    }
+    function closeScanner() {
+      if (qrScanner) { try { qrScanner.stop().then(() => qrScanner.clear()).catch(() => {}); } catch (e) {} qrScanner = null; }
+      scanTargetInput = null; closeModal('scannerModal');
+    }
 
     // --- Edit nominal (bisa diisi/diubah kapan saja, termasuk setelah selesai) ---
     function editNominal(id) {
@@ -542,12 +619,12 @@
       waTarget = id;
       $('waWho').textContent = `${q.queuePrefix}-${q.queueSequence} · ${q.customerName}`;
       $('waNumber').textContent = q.whatsappNumber ? ('WA: ' + q.whatsappNumber) : '⚠ nomor WA kosong';
-      $('waLink').value = q.photoLink || '';
+      renderLinks('waLinkContainer', q.photoLink || '');
       $('waModal').style.display = 'block';
     }
     async function saveLink(sendWA) {
       const q = queueCache.find((x) => x.id === waTarget); if (!q) return;
-      const link = $('waLink').value.trim();
+      const link = collectLinks('waLinkContainer');
       await api('/api/queues/' + waTarget + '/link', { method: 'PATCH', body: { photoLink: link } });
       if (sendWA) {
         const wa = (q.whatsappNumber || '').replace(/\D/g, '');
