@@ -457,6 +457,13 @@
     <div class="row" style="margin-top:18px;"><button class="btn danger sm" id="pkgDelBtn" onclick="deletePackage()">Hapus</button><div class="grow"></div><button class="btn sec" onclick="closeModal('pkgModal')">Batal</button><button class="btn ok" onclick="savePackage()">Simpan</button></div>
   </div></div>
 
+  <!-- MODAL: Konfirmasi (pengganti confirm() bawaan browser) -->
+  <div class="modal" id="confirmModal" data-lenis-prevent><div class="inner" style="max-width:380px;">
+    <h3 style="font-size:17px;" id="confirmTitle">Konfirmasi</h3>
+    <p style="font-size:14px;color:var(--ink-soft);margin:10px 0 0;line-height:1.5;" id="confirmMsg"></p>
+    <div class="row" style="margin-top:20px;"><button class="btn sec grow" onclick="_confirmResolve && _confirmResolveClose(false)">Batal</button><button class="btn danger grow" id="confirmOk" onclick="_confirmResolveClose(true)">Ya, lanjutkan</button></div>
+  </div></div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -557,7 +564,7 @@
     }
     async function addEvent() { const name = $('evName').value.trim(), prefix = ($('evPrefix').value.trim() || 'A').toUpperCase(); if (!name) return toast('Nama event wajib diisi', true); await api('/api/events', { method: 'POST', body: { name, prefix } }); $('evName').value=''; $('evPrefix').value=''; toast('Event dibuat'); loadEvents(); }
     async function toggleEvent(id, active) { await api('/api/events/' + id, { method: 'PATCH', body: { isActive: active } }); toast('Diperbarui'); loadEvents(); }
-    async function delEvent(id) { if (!confirm('Hapus event ini beserta semua antriannya?')) return; await api('/api/events/' + id, { method: 'DELETE' }); toast('Dihapus'); loadEvents(); }
+    async function delEvent(id) { if (!(await confirmDialog('Hapus event ini beserta semua antriannya? Tindakan ini tidak bisa dibatalkan.', { title: 'Hapus Event' }))) return; await api('/api/events/' + id, { method: 'DELETE' }); toast('Dihapus'); loadEvents(); }
 
     // --- Detail Event: pendapatan + daftar klien ---
     async function openEventDetail(id) {
@@ -620,7 +627,7 @@
       $('queueList').innerHTML = html;
     }
     async function callQ(id) { await api('/api/queues/call/' + id, { method: 'POST' }); toast('Dipanggil 📢'); loadQueues(); }
-    async function cancelQ(id) { if (!confirm('Batalkan antrian ini?')) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
+    async function cancelQ(id) { if (!(await confirmDialog('Batalkan antrian ini?', { title: 'Batalkan Antrian', okText: 'Ya, batalkan' }))) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
     // --- Helper: baris link (multi-link + scan QR) ---
     function linkRowHTML(val) {
       return `<div class="link-row"><input type="text" class="link-in" placeholder="Tempel / scan link foto" value="${esc(val || '')}" /><button class="btn sec" title="Scan QR" onclick="openScanner(this)">${A.cam}</button><button class="btn danger" title="Hapus" onclick="this.closest('.link-row').remove()">${A.x}</button></div>`;
@@ -714,6 +721,29 @@
     }
     function closeModal(id) { $(id).style.display = 'none'; }
 
+    // --- Dialog konfirmasi bertema (pengganti confirm() browser) ---
+    let _confirmResolve = null;
+    function confirmDialog(message, opts) {
+      opts = opts || {};
+      $('confirmTitle').textContent = opts.title || 'Konfirmasi';
+      $('confirmMsg').textContent = message;
+      const ok = $('confirmOk');
+      ok.textContent = opts.okText || 'Ya, lanjutkan';
+      ok.className = 'btn grow ' + (opts.danger === false ? 'ok' : 'danger');
+      $('confirmModal').style.display = 'block';
+      return new Promise((resolve) => { _confirmResolve = resolve; });
+    }
+    function _confirmResolveClose(val) {
+      $('confirmModal').style.display = 'none';
+      const r = _confirmResolve; _confirmResolve = null; if (r) r(val);
+    }
+    document.addEventListener('keydown', (e) => {
+      if ($('confirmModal') && $('confirmModal').style.display === 'block') {
+        if (e.key === 'Escape') _confirmResolveClose(false);
+        else if (e.key === 'Enter') _confirmResolveClose(true);
+      }
+    });
+
     // TEMPLATES
     async function loadTemplatesAdmin() {
       const cats = (await api('/api/categories')).data || [];
@@ -724,7 +754,7 @@
     }
     async function addCategory() { const name = $('newCat').value.trim(); if (!name) return; await api('/api/categories', { method: 'POST', body: { name } }); $('newCat').value=''; toast('Kategori ditambah'); loadTemplatesAdmin(); }
     async function toggleCat(id, active) { await api('/api/categories/' + id, { method: 'PATCH', body: { isActive: active } }); loadTemplatesAdmin(); }
-    async function delCat(id) { if (!confirm('Hapus kategori & semua template di dalamnya?')) return; await api('/api/categories/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
+    async function delCat(id) { if (!(await confirmDialog('Hapus kategori & semua template di dalamnya?', { title: 'Hapus Kategori' }))) return; await api('/api/categories/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
     async function uploadTemplates() {
       const files = $('upFiles').files, catId = $('upCat').value;
       if (!catId) return toast('Buat/pilih kategori dulu', true); if (!files.length) return toast('Pilih gambar dulu', true);
@@ -735,7 +765,7 @@
       $('upBtn').disabled = false; $('upBtn').textContent = 'Upload';
     }
     async function toggleTpl(id, active) { await api('/api/templates/' + id, { method: 'PATCH', body: { isActive: active } }); loadTemplatesAdmin(); }
-    async function delTpl(id) { if (!confirm('Hapus template ini?')) return; await api('/api/templates/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
+    async function delTpl(id) { if (!(await confirmDialog('Hapus template ini?', { title: 'Hapus Template' }))) return; await api('/api/templates/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
 
     // PACKAGES
     async function loadPackages() {
@@ -755,7 +785,7 @@
       if (id) await api('/api/packages/' + id, { method: 'PATCH', body }); else await api('/api/packages', { method: 'POST', body });
       closeModal('pkgModal'); toast('Paket disimpan'); loadPackages();
     }
-    async function deletePackage() { const id = $('pkgId').value; if (!id || !confirm('Hapus paket ini?')) return; await api('/api/packages/' + id, { method: 'DELETE' }); closeModal('pkgModal'); toast('Dihapus'); loadPackages(); }
+    async function deletePackage() { const id = $('pkgId').value; if (!id) return; if (!(await confirmDialog('Hapus paket ini?', { title: 'Hapus Paket' }))) return; await api('/api/packages/' + id, { method: 'DELETE' }); closeModal('pkgModal'); toast('Dihapus'); loadPackages(); }
 
     // CONTENT
     const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate','telegramToken','telegramChatId','dailyReportHour'];
@@ -826,7 +856,7 @@
     }
     async function addAdmin() { const username = $('adUser').value.trim(), password = $('adPass').value, role = $('adRole').value; if (!username || !password) return toast('Username & password wajib', true); const j = await api('/api/admins', { method: 'POST', body: { username, password, role } }); if (j.status === 'success') { toast('Admin ditambah'); $('adUser').value=''; $('adPass').value=''; loadAdmins(); } else toast(j.message || 'Gagal', true); }
     async function toggleAdmin(id, active) { await api('/api/admins/' + id, { method: 'PATCH', body: { isActive: active } }); loadAdmins(); }
-    async function delAdmin(id) { if (!confirm('Hapus admin ini?')) return; await api('/api/admins/' + id, { method: 'DELETE' }); toast('Dihapus'); loadAdmins(); }
+    async function delAdmin(id) { if (!(await confirmDialog('Hapus admin ini?', { title: 'Hapus Admin' }))) return; await api('/api/admins/' + id, { method: 'DELETE' }); toast('Dihapus'); loadAdmins(); }
 
     // ---------- MEDIA: GALERI & VIDEO ----------
     async function loadMediaAdmin() {
@@ -857,7 +887,7 @@
     }
     async function savePhotoCaption(id, val) { await api('/api/gallery/' + id, { method: 'PATCH', body: { caption: val } }); toast('Caption disimpan ✓'); }
     async function togglePhoto(id, a) { await api('/api/gallery/' + id, { method: 'PATCH', body: { isActive: a } }); loadMediaAdmin(); }
-    async function delPhoto(id) { if (!confirm('Hapus foto ini?')) return; await api('/api/gallery/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
+    async function delPhoto(id) { if (!(await confirmDialog('Hapus foto ini?', { title: 'Hapus Foto' }))) return; await api('/api/gallery/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
     async function uploadVideo() {
       const f = $('vidFile').files[0]; if (!f) return toast('Pilih video dulu', true);
       const fd = new FormData(); fd.append('video', f); fd.append('caption', $('vidCap').value);
@@ -868,7 +898,7 @@
     }
     async function saveVideoCaption(id, val) { await api('/api/videos/' + id, { method: 'PATCH', body: { caption: val } }); toast('Caption disimpan ✓'); }
     async function toggleVideo(id, a) { await api('/api/videos/' + id, { method: 'PATCH', body: { isActive: a } }); loadMediaAdmin(); }
-    async function delVideo(id) { if (!confirm('Hapus video ini?')) return; await api('/api/videos/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
+    async function delVideo(id) { if (!(await confirmDialog('Hapus video ini?', { title: 'Hapus Video' }))) return; await api('/api/videos/' + id, { method: 'DELETE' }); toast('Dihapus'); loadMediaAdmin(); }
     socket.on('media_updated', () => { if ($('page-media').classList.contains('active')) loadMediaAdmin(); });
 
     socket.on('queue_updated', () => { if ($('page-antrian').classList.contains('active')) loadQueues(); });
