@@ -788,9 +788,24 @@
     async function delTpl(id) { if (!(await confirmDialog('Hapus template ini?', { title: 'Hapus Template' }))) return; await api('/api/templates/' + id, { method: 'DELETE' }); toast('Dihapus'); loadTemplatesAdmin(); }
 
     // PACKAGES
+    const _chevU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>';
+    const _chevD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
     async function loadPackages() {
       pkgCache = (await api('/api/packages')).data || [];
-      $('pkgAdmin').innerHTML = pkgCache.map((p) => `<div class="list-row"><div><b>${esc(p.name)}</b> ${p.isPopular ? '<span class="badge b-waiting">Favorit</span>' : ''} ${p.isActive ? '' : '<span class="badge b-canceled">nonaktif</span>'}<div class="muted" style="font-size:13px;font-weight:600;">${rupiah(p.price)}</div></div><button class="btn sm sec" onclick="editPackage('${p.id}')">Edit</button></div>`).join('') || '<div class="empty">Belum ada paket.</div>';
+      $('pkgAdmin').innerHTML = pkgCache.map((p, i) => `<div class="list-row">
+        <div><b>${esc(p.name)}</b> ${p.isPopular ? '<span class="badge b-waiting">Favorit</span>' : ''} ${p.isActive ? '' : '<span class="badge b-canceled">nonaktif</span>'}<div class="muted" style="font-size:13px;font-weight:600;">${rupiah(p.price)}</div></div>
+        <div class="row" style="gap:5px;">
+          <button class="btn sm sec" title="Naik" onclick="movePackage(${i},-1)" ${i === 0 ? 'disabled' : ''}>${_chevU}</button>
+          <button class="btn sm sec" title="Turun" onclick="movePackage(${i},1)" ${i === pkgCache.length - 1 ? 'disabled' : ''}>${_chevD}</button>
+          <button class="btn sm sec" onclick="editPackage('${p.id}')">Edit</button>
+        </div></div>`).join('') || '<div class="empty">Belum ada paket.</div>';
+    }
+    async function movePackage(idx, dir) {
+      const j = idx + dir; if (j < 0 || j >= pkgCache.length) return;
+      const arr = pkgCache.slice(); const t = arr[idx]; arr[idx] = arr[j]; arr[j] = t;
+      pkgCache = arr;
+      await api('/api/packages/reorder', { method: 'POST', body: { ids: arr.map((x) => x.id) } });
+      toast('Urutan diperbarui ✓'); loadPackages();
     }
     function editPackage(id) {
       const p = pkgCache.find((x) => x.id === id) || {};

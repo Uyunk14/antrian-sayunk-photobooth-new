@@ -293,6 +293,12 @@ app.get('/api/packages', requireAuth, async (req, res) => {
 app.post('/api/packages', requireAuth, async (req, res) => {
   try {
     const b = req.body;
+    // Paket baru otomatis masuk ke paling bawah (sortOrder = terbesar + 1)
+    let sortOrder = parseInt(b.sortOrder);
+    if (isNaN(sortOrder)) {
+      const last = await prisma.package.findFirst({ orderBy: { sortOrder: 'desc' } });
+      sortOrder = last ? last.sortOrder + 1 : 0;
+    }
     await prisma.package.create({
       data: {
         name: b.name || 'Paket Baru',
@@ -302,13 +308,25 @@ app.post('/api/packages', requireAuth, async (req, res) => {
         features: b.features || null,
         isPopular: isTrue(b.isPopular),
         isActive: b.isActive === undefined ? true : isTrue(b.isActive),
-        sortOrder: parseInt(b.sortOrder) || 0,
+        sortOrder,
       },
     });
     io.emit('content_updated');
     ok(res);
   } catch (e) {
     fail(res, 500, 'Gagal menambah paket');
+  }
+});
+
+// Urutkan ulang paket sesuai daftar id (indeks jadi sortOrder)
+app.post('/api/packages/reorder', requireAuth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    await prisma.$transaction(ids.map((id, i) => prisma.package.update({ where: { id }, data: { sortOrder: i } })));
+    io.emit('content_updated');
+    ok(res);
+  } catch (e) {
+    fail(res, 500, 'Gagal mengurutkan paket');
   }
 });
 
