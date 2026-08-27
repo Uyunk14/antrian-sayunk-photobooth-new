@@ -69,33 +69,13 @@
     @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.6); } }
 
     /* ---------- HERO ---------- */
-    .hero { padding: 16px 0 30px; display: grid; gap: 26px; align-items: center; }
-    .hero-text { text-align: center; }
+    .hero { padding: 6px 0 20px; text-align: center; }
     .hero .kicker { display: inline-block; font-size: 12px; font-weight: 700; color: var(--lilac-deep);
-      background: var(--lilac-soft); padding: 6px 14px; border-radius: 30px; margin-bottom: 18px; }
-    .hero h1 { font-size: clamp(2.6rem, 9vw, 4.4rem); font-weight: 800; letter-spacing: -0.04em;
+      background: var(--lilac-soft); padding: 6px 14px; border-radius: 30px; margin-bottom: 15px; }
+    .hero h1 { font-size: clamp(2.4rem, 8.5vw, 4rem); font-weight: 800; letter-spacing: -0.04em;
       background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero p { color: var(--ink-soft); font-size: clamp(13.5px, 2.6vw, 16px); max-width: 480px; margin: 16px auto 0; }
-    .chips { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 20px; }
-    @media (min-width: 900px) {
-      .hero { grid-template-columns: 1.02fr 0.98fr; gap: 34px; padding: 40px 0 48px; }
-      .hero-text { text-align: left; }
-      .hero-text .chips { justify-content: flex-start; }
-      .hero p { margin: 18px 0 0; }
-    }
-    /* Hero visual: photo strip + polaroid + sparkles */
-    .hero-visual { position: relative; height: 350px; display: grid; place-items: center; }
-    .hero-visual .pstrip { width: 124px; background: #fff; border-radius: 15px; padding: 10px 10px 28px;
-      box-shadow: 0 34px 60px -26px rgba(120,100,160,.55); transform: rotate(-7deg); position: relative; z-index: 2; }
-    .pstrip .frame { aspect-ratio: 1/1; border-radius: 7px; margin-bottom: 8px; }
-    .pstrip .frame:last-child { margin-bottom: 0; }
-    .pstrip::after { content: 'SAYUNK'; position: absolute; bottom: 11px; left: 0; right: 0; text-align: center;
-      font-size: 10px; font-weight: 800; letter-spacing: 3px; color: var(--muted); }
-    .hero-visual .polaroid { position: absolute; width: 144px; background: #fff; border-radius: 13px; padding: 9px 9px 28px;
-      box-shadow: 0 30px 55px -24px rgba(120,100,160,.5); transform: rotate(8deg); right: 6%; bottom: 6%; z-index: 3; }
-    .polaroid .pic { aspect-ratio: 4/5; border-radius: 9px; }
-    .polaroid .cap { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-    .hero-visual .spark { position: absolute; color: var(--peach); opacity: .9; }
+    .hero p { color: var(--ink-soft); font-size: clamp(13.5px, 2.6vw, 16px); max-width: 480px; margin: 13px auto 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 16px; }
     .g1 { background: linear-gradient(135deg,#E9DDFF,#C9B8FF); } .g2 { background: linear-gradient(135deg,#FFDCE4,#FFB0C4); }
     .g3 { background: linear-gradient(135deg,#D6F5E8,#A7E8CE); } .g4 { background: linear-gradient(135deg,#FFE9C7,#FFD08A); }
     /* Galeri */
@@ -256,22 +236,10 @@
     </div>
 
     <section class="hero">
-      <div class="hero-text">
-        <span class="kicker" data-anim="intro">✨ Self-Studio Photobooth</span>
-        <h1 id="heroTitle" data-anim="intro">capture every vibe.</h1>
-        <p id="heroSub" data-anim="intro">Memuat informasi…</p>
-        <div class="chips" id="heroChips" data-anim="intro"></div>
-      </div>
-      <div class="hero-visual" data-anim="intro" aria-hidden="true">
-        <div class="pstrip" data-float>
-          <div class="frame g1"></div><div class="frame g2"></div><div class="frame g3"></div>
-        </div>
-        <div class="polaroid" data-float>
-          <div class="pic g4"></div><div class="cap">say cheese! 📸</div>
-        </div>
-        <svg class="spark" style="top:5%;left:9%;width:26px;height:26px" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/></svg>
-        <svg class="spark" style="bottom:12%;left:1%;width:18px;height:18px;color:var(--lilac)" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/></svg>
-      </div>
+      <span class="kicker" data-anim="intro">✨ Self-Studio Photobooth</span>
+      <h1 id="heroTitle" data-anim="intro">capture every vibe.</h1>
+      <p id="heroSub" data-anim="intro">Memuat informasi…</p>
+      <div class="chips" id="heroChips" data-anim="intro"></div>
     </section>
 
     <!-- QUEUE CARD -->
@@ -351,7 +319,6 @@
 
       const chips = [];
       if (c.openingHours) chips.push(`🕒 ${esc(c.openingHours)}`);
-      if (c.address) chips.push(`📍 ${esc(c.address.split(',')[0])}`);
       $('heroChips').innerHTML = chips.map((t) => `<span class="chip">${t}</span>`).join('');
 
       const pkgs = c.packages || [];
