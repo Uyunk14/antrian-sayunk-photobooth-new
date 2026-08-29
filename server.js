@@ -716,6 +716,17 @@ app.post('/api/queues/call/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Kembalikan status ke MENUNGGU (undo "Sedang Foto")
+app.post('/api/queues/wait/:id', requireAuth, async (req, res) => {
+  try {
+    const q = await prisma.queue.update({ where: { id: req.params.id }, data: { status: 'WAITING' } });
+    io.to(q.eventId).emit('queue_updated');
+    ok(res);
+  } catch (e) {
+    fail(res, 500, 'Gagal mengubah status');
+  }
+});
+
 app.post('/api/queues/done/:id', requireAuth, async (req, res) => {
   try {
     const b = req.body || {};

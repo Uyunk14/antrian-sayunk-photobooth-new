@@ -115,10 +115,14 @@
     .stat .b.m { background: var(--mint-soft); border-color: transparent; } .stat .b.m b { color: #047857; }
 
     /* queue items */
-    .qitem { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; margin-bottom: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
-    .qnum { font-weight: 800; font-size: 19px; min-width: 60px; color: var(--lilac-deep); }
+    .qitem { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; margin-bottom: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .qhead { display: flex; align-items: center; gap: 12px; flex: 1 1 220px; min-width: 0; }
+    .qnum { font-weight: 800; font-size: 19px; min-width: 56px; color: var(--lilac-deep); }
     .qinfo { flex: 1; min-width: 0; }
-    .qinfo .nm { font-weight: 700; font-size: 14.5px; }
+    .qinfo .nm { font-weight: 700; font-size: 14.5px; word-break: break-word; }
+    .qactions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .btn.sm.active-foto { background: linear-gradient(135deg,#10B981,#34D399); color: #fff; box-shadow: 0 8px 18px -10px rgba(16,185,129,0.6); }
+    @media (max-width: 560px) { .qactions { flex-basis: 100%; justify-content: flex-end; } }
     .badge { font-size: 10.5px; font-weight: 800; padding: 4px 9px; border-radius: 30px; display: inline-block; margin-top: 3px; }
     .b-waiting { background: var(--lilac-soft); color: var(--lilac-deep); }
     .b-called { background: var(--mint-soft); color: #047857; }
@@ -611,41 +615,58 @@
       const active = qs.filter((q) => q.status === 'WAITING' || q.status === 'CALLED');
       const finished = qs.filter((q) => q.status === 'DONE' || q.status === 'CANCELED');
 
-      let html = active.map((q) => `<div class="qitem"><div class="qnum">${q.queuePrefix}-${q.queueSequence}</div>
-        <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.status === 'CALLED' ? 'b-called' : 'b-waiting'}">${q.status === 'CALLED' ? 'Sedang Foto' : 'Menunggu'}</span></div>
-        <div class="row" style="gap:6px;">${q.status === 'WAITING' ? `<button class="btn sm" onclick="callQ('${q.id}')">${A.chat}Panggil</button>` : ''}<button class="btn sm ok" onclick="openDone('${q.id}','${eventId}','${esc(q.customerName)}','${q.queuePrefix}-${q.queueSequence}')">${A.check}Selesai</button><button class="btn sm danger" onclick="cancelQ('${q.id}')">${A.x}</button></div>
-      </div>`).join('') || '<div class="empty">Tidak ada antrian aktif. 🎉</div>';
+      let html = active.map((q) => {
+        const num = q.queuePrefix + '-' + q.queueSequence;
+        const isFoto = q.status === 'CALLED';
+        return `<div class="qitem">
+        <div class="qhead"><div class="qnum">${num}</div>
+          <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${isFoto ? 'b-called' : 'b-waiting'}">${isFoto ? 'Sedang Foto' : 'Menunggu'}</span></div></div>
+        <div class="qactions">
+          <button class="btn sm" onclick="callQ('${q.id}')">${A.chat}Panggil</button>
+          <button class="btn sm ${isFoto ? 'active-foto' : 'sec'}" onclick="fotoQ('${q.id}',${isFoto})">${A.cam}${isFoto ? 'Sedang Foto' : 'Mulai Foto'}</button>
+          <button class="btn sm ok" onclick="openDone('${q.id}','${eventId}','${esc(q.customerName)}','${num}')">${A.check}Selesai</button>
+          <button class="btn sm danger" onclick="cancelQ('${q.id}')">${A.x}</button>
+        </div>
+      </div>`;
+      }).join('') || '<div class="empty">Tidak ada antrian aktif. 🎉</div>';
 
       if (finished.length) {
         html += '<div style="margin:24px 0 10px;font-weight:800;font-size:14px;color:var(--muted);">Selesai &amp; Riwayat</div>';
         html += finished.slice().reverse().map(function (q) {
           const num = q.queuePrefix + '-' + q.queueSequence;
           if (q.status === 'CANCELED') {
-            return `<div class="qitem" style="opacity:.65;"><div class="qnum" style="color:var(--muted);">${num}</div><div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge b-canceled">Dibatalkan</span></div></div>`;
+            return `<div class="qitem" style="opacity:.65;"><div class="qhead"><div class="qnum" style="color:var(--muted);">${num}</div><div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge b-canceled">Dibatalkan</span></div></div></div>`;
           }
           const priceLbl = (q.finalPrice > 0) ? ('Selesai · ' + rupiahShort(q.finalPrice)) : 'Selesai · nominal belum diisi';
-          return `<div class="qitem"><div class="qnum" style="color:var(--muted);">${num}</div>
-            <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.finalPrice > 0 ? 'b-done' : 'b-canceled'}">${priceLbl}</span>${q.photoLink ? '<div style="font-size:11px;color:var(--mint);font-weight:700;margin-top:3px;">link tersimpan ✓</div>' : ''}</div>
-            <div class="row" style="gap:6px;"><button class="btn sm sec" onclick="editNominal('${q.id}')">Nominal</button><button class="btn sm ok" onclick="kirimWA('${q.id}')">Link &amp; WA</button></div>
+          return `<div class="qitem"><div class="qhead"><div class="qnum" style="color:var(--muted);">${num}</div>
+            <div class="qinfo"><div class="nm">${esc(q.customerName)}</div><span class="badge ${q.finalPrice > 0 ? 'b-done' : 'b-canceled'}">${priceLbl}</span>${q.photoLink ? '<div style="font-size:11px;color:var(--mint);font-weight:700;margin-top:3px;">link tersimpan ✓</div>' : ''}</div></div>
+            <div class="qactions"><button class="btn sm sec" onclick="editNominal('${q.id}')">Nominal</button><button class="btn sm ok" onclick="kirimWA('${q.id}')">Link &amp; WA</button></div>
           </div>`;
         }).join('');
       }
       $('queueList').innerHTML = html;
     }
+    // Panggil = HANYA buka WhatsApp (tidak mengubah status antrian)
     function callQ(id) {
       const q = findQ(id); if (!q) return;
       let wa = (q.whatsappNumber || '').replace(/\D/g, '');
       if (wa.startsWith('0')) wa = '62' + wa.slice(1);
+      if (!wa) { toast('Nomor WA pelanggan kosong', true); return; }
       const num = q.queuePrefix + '-' + q.queueSequence;
-      // Buka WhatsApp (sinkron di dalam klik, agar tidak diblokir popup blocker)
-      if (!wa) { toast('Nomor WA pelanggan kosong', true); }
-      else {
-        const tpl = SETTINGS.callTemplate || 'Halo Kak [Nama Pelanggan]! Nomor antrianmu [Nomor Antrian] — sekarang giliranmu, silakan menuju booth Sayunk ya! 📸';
-        const msg = tpl.replace(/\[Nama[^\]]*\]/gi, q.customerName).replace(/\[(Nomor|Antri)[^\]]*\]/gi, num);
-        window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
-      }
-      // Tandai sudah dipanggil (perbarui papan antrian)
-      api('/api/queues/call/' + id, { method: 'POST' }).then(() => { toast('Dipanggil via WhatsApp'); loadQueues(); }).catch(() => {});
+      const tpl = SETTINGS.callTemplate || 'Halo Kak [Nama Pelanggan]! Nomor antrianmu [Nomor Antrian] — sekarang giliranmu, silakan menuju booth Sayunk ya! 📸';
+      // pakai fungsi replacer agar karakter khusus ($ dll) di nama tidak dianggap pola
+      const msg = tpl.replace(/\[Nama[^\]]*\]/gi, () => q.customerName).replace(/\[(Nomor|Antri)[^\]]*\]/gi, () => num);
+      window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+      toast('Membuka WhatsApp…');
+    }
+    // Tombol khusus ubah status: Menunggu <-> Sedang Foto
+    async function fotoQ(id, isFoto) {
+      try {
+        const j = await api('/api/queues/' + (isFoto ? 'wait' : 'call') + '/' + id, { method: 'POST' });
+        if (!j || j.status !== 'success') { toast((j && j.message) || 'Gagal mengubah status', true); return; }
+        toast(isFoto ? 'Kembali ke Menunggu' : 'Ditandai Sedang Foto');
+        loadQueues();
+      } catch (e) { toast('Gagal mengubah status', true); }
     }
     async function cancelQ(id) { if (!(await confirmDialog('Batalkan antrian ini?', { title: 'Batalkan Antrian', okText: 'Ya, batalkan' }))) return; await api('/api/queues/cancel/' + id, { method: 'POST' }); toast('Dibatalkan'); loadQueues(); }
     // --- Helper: baris link (multi-link + scan QR) ---
@@ -733,7 +754,7 @@
         if (!wa) { toast('Nomor WA kosong', true); }
         else {
           const tpl = SETTINGS.whatsappTemplate || 'Halo Kak [Nama], terima kasih! Ini link hasil fotomu: [Link]';
-          const msg = tpl.replace(/\[Nama[^\]]*\]/gi, q.customerName).replace(/\[Link[^\]]*\]/gi, link || '(link menyusul)');
+          const msg = tpl.replace(/\[Nama[^\]]*\]/gi, () => q.customerName).replace(/\[Link[^\]]*\]/gi, () => link || '(link menyusul)');
           window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
         }
       }
@@ -825,7 +846,7 @@
     // CONTENT
     const CF = ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate','callTemplate','telegramToken','telegramChatId','dailyReportHour'];
     async function loadContent() { const s = (await api('/api/settings')).data || {}; SETTINGS = s; CF.forEach((f) => { const el = $('c_' + f); if (el) el.value = s[f] == null ? '' : s[f]; }); }
-    async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate','callTemplate'].forEach((f) => body[f] = $('c_' + f).value); await api('/api/settings', { method: 'POST', body }); SETTINGS.whatsappTemplate = $('c_whatsappTemplate').value; SETTINGS.callTemplate = $('c_callTemplate').value; toast('Konten tersimpan ✓'); }
+    async function saveContent() { const body = {}; ['boothName','tagline','logoUrl','heroSubtitle','avgSessionMinutes','instagramUrl','tiktokUrl','whatsappNumber','address','openingHours','mapsUrl','howToUse','boothRules','whatsappTemplate','callTemplate'].forEach((f) => body[f] = $('c_' + f).value); const j = await api('/api/settings', { method: 'POST', body }); if (!j || j.status !== 'success') { toast((j && j.message) || 'Gagal menyimpan — pastikan database server sudah di-update (npx prisma db push)', true); return; } SETTINGS.whatsappTemplate = $('c_whatsappTemplate').value; SETTINGS.callTemplate = $('c_callTemplate').value; toast('Konten tersimpan ✓'); }
     async function saveTelegram() { await api('/api/settings', { method: 'POST', body: { telegramToken: $('c_telegramToken').value, telegramChatId: $('c_telegramChatId').value, dailyReportHour: $('c_dailyReportHour').value || 23 } }); toast('Pengaturan Telegram tersimpan ✓'); }
     async function testTelegram() { const j = await api('/api/telegram/test', { method: 'POST', body: { token: $('c_telegramToken').value, chatId: $('c_telegramChatId').value } }); toast(j.status === 'success' ? 'Pesan tes terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
     async function reportNow(day) { const j = await api('/api/telegram/report-now', { method: 'POST', body: { day } }); toast(j.status === 'success' ? 'Laporan terkirim ✓' : (j.message || 'Gagal'), j.status !== 'success'); }
